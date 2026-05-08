@@ -18,6 +18,7 @@ PLAN*.md
 
 # SOURCE
 !src/
+!resources/
 
 # RS
 !.cargo/

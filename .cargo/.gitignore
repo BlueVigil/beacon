@@ -1,0 +1,9 @@
+*
+!.gitignore
+
+# DOCUMENTATION
+!*.md
+
+# SOURCE
+!**/
+!*.toml

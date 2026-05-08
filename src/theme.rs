@@ -1,0 +1,10 @@
+pub const BLACK: u32 = 0x000000;
+pub const PANEL: u32 = 0x020806;
+pub const PANEL_LINE: u32 = 0x12352A;
+pub const GREEN: u32 = 0x26FF63;
+pub const GREEN_DIM: u32 = 0x0C5F2B;
+pub const GREEN_DARK: u32 = 0x00180A;
+pub const RED: u32 = 0xFF1F1F;
+pub const RED_DARK: u32 = 0x260404;
+pub const WHITE: u32 = 0xFFFFFF;
+pub const MUTED_WHITE: u32 = 0xA7B7AD;

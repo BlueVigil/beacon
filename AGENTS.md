@@ -1,0 +1,6 @@
+- BEACON is a gpui based cross platform desktop app for interacting with teensy microcontrollers
+- prioritize simplicity, maintainability, reliability, THEN performance.
+- choose correctness and robustness over convenience
+- if you add new functionality, first check if there is shared logic that can be used/modified/extracted to a separate module.
+  - duplicate logic across mulitple files must be avoided
+- proposing sweeping changes that drastically improve long-term maintainability and readability is encouraged.
