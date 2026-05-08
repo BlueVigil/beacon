@@ -22,6 +22,7 @@ fn main() {
       cx.open_window(
          WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
+            window_min_size: Some(size(px(900.0), px(600.0))),
             ..Default::default()
          },
          |_, cx| cx.new(BeaconApp::new),

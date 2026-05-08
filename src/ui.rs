@@ -35,7 +35,9 @@ impl Render for BeaconApp {
          .p_4()
          .child(
             div()
-               .w(px(900.0))
+               .w_full()
+               .max_w(px(1240.0))
+               .min_w(px(860.0))
                .h_full()
                .border_1()
                .border_color(rgb(BORDER_ACTIVE))
@@ -50,9 +52,11 @@ impl Render for BeaconApp {
                      .flex()
                      .gap_3()
                      .flex_1()
+                     .min_h(px(0.0))
                      .child(
                         div()
-                           .w(px(420.0))
+                           .flex_1()
+                           .flex_basis(px(390.0))
                            .flex()
                            .flex_col()
                            .gap_3()
@@ -63,6 +67,7 @@ impl Render for BeaconApp {
                      .child(
                         div()
                            .flex_1()
+                           .flex_basis(px(460.0))
                            .flex()
                            .flex_col()
                            .gap_3()
@@ -76,6 +81,7 @@ impl Render for BeaconApp {
 }
 
 const FONT_MONO: &str = "Courier New";
+const FONT_TITLE: &str = "Menlo";
 
 impl BeaconApp {
    fn instrument_cluster(&self) -> impl IntoElement {
@@ -94,116 +100,69 @@ impl BeaconApp {
                .bg(rgb(if error_state { ALERT } else { PHOSPHOR_DIM })),
          )
          .child(
-            // Top status bar
             div()
-               .flex()
-               .items_center()
-               .justify_between()
-               .px_3()
-               .py_2()
-               .child(
-                  div()
-                     .flex()
-                     .items_center()
-                     .gap_2()
-                     .child(anno("SN:001"))
-                     .child(
-                        div()
-                           .font_family(FONT_MONO)
-                           .text_size(px(10.0))
-                           .text_color(if error_state {
-                              rgb(ALERT)
-                           } else {
-                              rgb(PHOSPHOR)
-                           })
-                           .font_weight(FontWeight::SEMIBOLD)
-                           .child(self.status_text()),
-                     ),
-               )
-               .child(
-                  div()
-                     .flex()
-                     .items_center()
-                     .gap_3()
-                     .child(led("SYS", true, PHOSPHOR))
-                     .child(led("HEX", self.selected_hex.is_some(), AMBER))
-                     .child(led("DEV", self.selected_device_index.is_some(), PHOSPHOR))
-                     .child(led("FLT", error_state, ALERT))
-                     .child(anno("24VDC")),
-               ),
-         )
-         .child(
-            // Main readout row
-            div()
-               .flex_1()
                .flex()
                .items_center()
                .justify_between()
                .px_4()
-               .child(readout(
-                  &format!("{:02}", self.devices.len().min(99)),
-                  "DEVICES.DETECTED",
-               ))
-               .child(spectrum_analyzer())
-               .child(readout(
-                  if self.selected_hex.is_some() {
-                     "ARMED"
-                  } else {
-                     "STBY"
-                  },
-                  "FIRMWARE.HEX",
-               )),
-         )
-         .child(
-            // Bottom info bar
-            div()
-               .flex()
-               .items_center()
-               .justify_between()
-               .px_3()
                .py_2()
-               .border_t_1()
-               .border_color(rgb(BORDER))
                .child(
                   div()
                      .flex()
                      .flex_col()
                      .gap_1()
-                     .child(anno("CLASS B"))
                      .child(
                         div()
-                           .flex()
-                           .gap_2()
-                           .child(level_bar("LNK", self.tycmd.is_some(), PHOSPHOR))
-                           .child(level_bar("HEX", self.selected_hex.is_some(), AMBER))
-                           .child(level_bar("RDY", self.can_upload(), PHOSPHOR))
-                           .child(level_bar(
-                              "UP",
-                              matches!(self.status, AppStatus::Uploading),
-                              PHOSPHOR,
-                           )),
-                     ),
+                           .font_family(FONT_TITLE)
+                           .text_size(px(18.0))
+                           .text_color(rgb(PHOSPHOR))
+                           .font_weight(FontWeight::BOLD)
+                           .child("BEACON"),
+                     )
+                     .child(header_status(self)),
                )
                .child(
                   div()
                      .flex()
-                     .flex_col()
-                     .items_end()
+                     .items_center()
                      .gap_2()
-                     .child(
-                        div()
-                           .font_family(FONT_MONO)
-                           .text_size(px(9.0))
-                           .text_color(rgb(TEXT_DIM))
-                           .child("TEENSY FIRMWARE LOADER  v0.1.0"),
-                     )
-                     .child(anno("MFG:USA")),
+                     .child(step_indicator(
+                        "File selected",
+                        self.selected_hex.is_some(),
+                        AMBER,
+                     ))
+                     .child(step_chevron(self.selected_device_index.is_some()))
+                     .child(step_indicator(
+                        "Teensy selected",
+                        self.selected_device_index.is_some(),
+                        PHOSPHOR,
+                     ))
+                     .child(step_chevron(self.can_upload()))
+                     .child(step_indicator("Ready", self.can_upload(), PHOSPHOR)),
                ),
+         )
+         .child(
+            div()
+               .flex_1()
+               .flex()
+               .items_center()
+               .justify_center()
+               .px_4()
+               .child(spectrum_analyzer()),
+         )
+         .child(
+            div()
+               .flex()
+               .items_center()
+               .px_4()
+               .py_2()
+               .border_t_1()
+               .border_color(rgb(BORDER)),
          )
    }
 
    fn firmware_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
-      panel("MODULE.01  FIRMWARE", self.selected_hex.is_some(), AMBER)
+      panel("[01]", "FIRMWARE", self.selected_hex.is_some(), AMBER)
          .child(data_field(
             "FILE",
             self
@@ -228,7 +187,8 @@ impl BeaconApp {
          .unwrap_or("NO TEENSY");
 
       let mut p = panel(
-         "MODULE.02  DEVICE",
+         "[02]",
+         "DEVICE",
          self.selected_device_index.is_some(),
          PHOSPHOR,
       )
@@ -298,17 +258,13 @@ impl BeaconApp {
          .map(|o| summarize(o))
          .unwrap_or_else(|| "PENDING IDENTIFY".to_string());
 
-      panel(
-         "MODULE.03  VERIFY",
-         self.identify_output.is_some(),
-         PHOSPHOR,
-      )
-      .child(data_block(identify, self.identify_output.is_some()))
+      panel("[03]", "VERIFY", self.identify_output.is_some(), PHOSPHOR)
+         .child(data_block(identify, self.identify_output.is_some()))
    }
 
    fn upload_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
       let can_upload = self.can_upload();
-      panel("MODULE.04  UPLOAD", can_upload, AMBER)
+      panel("[04]", "UPLOAD", can_upload, AMBER)
          .child(data_field("STATUS", upload_status(self), can_upload))
          .child(action_button(
             "EXECUTE UPLOAD",
@@ -319,14 +275,15 @@ impl BeaconApp {
 
    fn output_panel(&self) -> impl IntoElement {
       let lines = if self.output_lines.is_empty() {
-         vec!["SYSTEM READY --- WAITING FOR COMMANDS".to_string()]
+         vec!["Waiting for commands".to_string()]
       } else {
          self.output_lines.iter().rev().take(12).cloned().collect()
       };
 
-      panel("MODULE.05  OUTPUT", !self.output_lines.is_empty(), PHOSPHOR).child(
+      panel("[05]", "OUTPUT", !self.output_lines.is_empty(), PHOSPHOR).child(
          div()
-            .h(px(180.0))
+            .flex_1()
+            .min_h(px(160.0))
             .border_1()
             .border_color(rgb(BORDER))
             .bg(rgb(BG))
@@ -352,7 +309,8 @@ impl BeaconApp {
       let active = message.is_some();
 
       panel(
-         "MODULE.06  RECOVERY",
+         "[06]",
+         "RECOVERY",
          active || matches!(self.status, AppStatus::Success | AppStatus::Ready),
          if active { ALERT } else { PHOSPHOR },
       )
@@ -360,9 +318,9 @@ impl BeaconApp {
          message.unwrap_or_else(|| {
             match self.status {
                AppStatus::Success => "UPLOAD COMPLETE".to_string(),
-               AppStatus::Ready => "SYSTEM ARMED AND READY".to_string(),
+               AppStatus::Ready => "READY TO UPLOAD".to_string(),
                AppStatus::Uploading => "UPLOAD IN PROGRESS...".to_string(),
-               _ => "STANDBY".to_string(),
+               _ => "WAITING".to_string(),
             }
          }),
          active || matches!(self.status, AppStatus::Success | AppStatus::Ready),
@@ -370,10 +328,10 @@ impl BeaconApp {
    }
 }
 
-fn panel(title: &'static str, active: bool, accent: u32) -> gpui::Div {
+fn panel(index: &'static str, title: &'static str, active: bool, accent: u32) -> gpui::Div {
    div()
       .border_1()
-      .border_color(rgb(if active { accent } else { BORDER }))
+      .border_color(rgb(BORDER))
       .bg(rgb(SURFACE))
       .p_3()
       .flex()
@@ -386,7 +344,7 @@ fn panel(title: &'static str, active: bool, accent: u32) -> gpui::Div {
             .gap_2()
             .pb_2()
             .border_b_1()
-            .border_color(rgb(if active { accent } else { BORDER }))
+            .border_color(rgb(BORDER))
             .child(
                div()
                   .w(px(6.0))
@@ -396,20 +354,77 @@ fn panel(title: &'static str, active: bool, accent: u32) -> gpui::Div {
             .child(
                div()
                   .font_family(FONT_MONO)
+                  .text_size(px(9.0))
+                  .text_color(rgb(TEXT_DIM))
+                  .child(index),
+            )
+            .child(
+               div()
+                  .font_family(FONT_MONO)
                   .text_size(px(10.0))
-                  .text_color(rgb(if active { accent } else { TEXT }))
+                  .text_color(rgb(TEXT))
                   .font_weight(FontWeight::SEMIBOLD)
                   .child(title),
             ),
       )
 }
 
-fn anno(text: &str) -> impl IntoElement {
+fn header_status(app: &BeaconApp) -> impl IntoElement {
+   let error_state = matches!(app.status, AppStatus::Error(_));
+
    div()
       .font_family(FONT_MONO)
-      .text_size(px(8.0))
-      .text_color(rgb(TEXT_DIM))
-      .child(text.to_string())
+      .text_size(px(10.0))
+      .text_color(rgb(if error_state { ALERT } else { PHOSPHOR }))
+      .child(status_sentence(app))
+}
+
+fn status_sentence(app: &BeaconApp) -> &'static str {
+   match app.status {
+      AppStatus::Idle => "Choose a firmware file or scan for a Teensy.",
+      AppStatus::SelectingFile => "Choosing firmware file.",
+      AppStatus::Detecting => "Scanning for connected Teensy boards.",
+      AppStatus::Identifying => "Reading Teensy identity.",
+      AppStatus::Ready => "Ready to upload.",
+      AppStatus::Uploading => "Uploading firmware.",
+      AppStatus::Success => "Upload complete.",
+      AppStatus::Error(AppErrorKind::MissingTycmd(_)) => "Bundled tycmd is missing.",
+      AppStatus::Error(AppErrorKind::InvalidHexFile(_)) => "Selected file is not a .hex file.",
+      AppStatus::Error(AppErrorKind::NoDevice) => "No Teensy detected.",
+      AppStatus::Error(AppErrorKind::MultipleDevicesNoSelection) => "Select one Teensy.",
+      AppStatus::Error(AppErrorKind::CommandFailed { .. }) => "Command failed.",
+      AppStatus::Error(AppErrorKind::Io(_)) => "I/O error.",
+   }
+}
+
+fn step_indicator(label: &str, active: bool, color: u32) -> impl IntoElement {
+   div()
+      .flex()
+      .items_center()
+      .gap_1()
+      .child(status_dot(active, color))
+      .child(
+         div()
+            .font_family(FONT_MONO)
+            .text_size(px(9.0))
+            .text_color(rgb(if active { TEXT } else { TEXT_DIM }))
+            .child(label.to_string()),
+      )
+}
+
+fn step_chevron(active: bool) -> impl IntoElement {
+   div()
+      .font_family(FONT_MONO)
+      .text_size(px(13.0))
+      .text_color(rgb(if active { PHOSPHOR_DIM } else { BORDER }))
+      .child(">")
+}
+
+fn status_dot(active: bool, color: u32) -> impl IntoElement {
+   div()
+      .w(px(7.0))
+      .h(px(7.0))
+      .bg(rgb(if active { color } else { BORDER }))
 }
 
 fn action_button(
@@ -421,8 +436,8 @@ fn action_button(
       .id(SharedString::from(format!("btn-{label}")))
       .cursor_pointer()
       .border_1()
-      .border_color(rgb(if disabled { BORDER } else { PHOSPHOR }))
-      .bg(rgb(if disabled { SURFACE } else { PHOSPHOR_DARK }))
+      .border_color(rgb(if disabled { BORDER } else { BORDER_ACTIVE }))
+      .bg(rgb(if disabled { SURFACE } else { SURFACE_ACTIVE }))
       .px_3()
       .py_2()
       .flex()
@@ -433,12 +448,12 @@ fn action_button(
          div()
             .w(px(6.0))
             .h(px(6.0))
-            .bg(rgb(if disabled { BORDER } else { PHOSPHOR })),
+            .bg(rgb(if disabled { BORDER } else { PHOSPHOR_DIM })),
       )
       .child(
          div()
             .text_size(px(11.0))
-            .text_color(rgb(if disabled { TEXT_DIM } else { PHOSPHOR }))
+            .text_color(rgb(if disabled { TEXT_DIM } else { TEXT }))
             .font_family(FONT_MONO)
             .font_weight(FontWeight::SEMIBOLD)
             .child(label),
@@ -485,75 +500,6 @@ fn data_block(value: impl Into<String>, active: bool) -> impl IntoElement {
       .text_size(px(10.0))
       .text_color(rgb(if active { PHOSPHOR } else { TEXT_DIM }))
       .child(value.into())
-}
-
-fn led(label: &str, active: bool, color: u32) -> impl IntoElement {
-   div()
-      .flex()
-      .items_center()
-      .gap_1()
-      .child(
-         div()
-            .w(px(8.0))
-            .h(px(8.0))
-            .bg(rgb(if active { color } else { BORDER }))
-            .border_1()
-            .border_color(rgb(if active { color } else { BORDER })),
-      )
-      .child(
-         div()
-            .font_family(FONT_MONO)
-            .text_size(px(8.0))
-            .text_color(rgb(if active { color } else { TEXT_DIM }))
-            .child(label.to_string()),
-      )
-}
-
-fn level_bar(label: &str, active: bool, color: u32) -> impl IntoElement {
-   div()
-      .flex()
-      .items_center()
-      .gap_1()
-      .child(
-         div()
-            .font_family(FONT_MONO)
-            .text_size(px(8.0))
-            .text_color(rgb(TEXT_DIM))
-            .child(label.to_string()),
-      )
-      .child(
-         div()
-            .w(px(28.0))
-            .h(px(4.0))
-            .bg(rgb(if active { color } else { BORDER })),
-      )
-}
-
-fn readout(value: &str, label: &str) -> impl IntoElement {
-   div()
-      .flex()
-      .flex_col()
-      .items_start()
-      .gap_1()
-      .child(
-         div()
-            .border_1()
-            .border_color(rgb(PHOSPHOR_DIM))
-            .bg(rgb(BG))
-            .px_3()
-            .py_1()
-            .font_family(FONT_MONO)
-            .text_size(px(40.0))
-            .text_color(rgb(PHOSPHOR))
-            .child(value.to_string()),
-      )
-      .child(
-         div()
-            .font_family(FONT_MONO)
-            .text_size(px(9.0))
-            .text_color(rgb(TEXT_DIM))
-            .child(label.to_string()),
-      )
 }
 
 fn spectrum_analyzer() -> impl IntoElement {

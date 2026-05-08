@@ -6,7 +6,7 @@ pub const PHOSPHOR: u32 = 0x33FF57;
 pub const PHOSPHOR_DIM: u32 = 0x1A5C2A;
 pub const PHOSPHOR_DARK: u32 = 0x0A1F0F;
 
-pub const AMBER: u32 = 0xFFB020;
+pub const AMBER: u32 = 0xFF6A00;
 
 pub const ALERT: u32 = 0xFF2A2A;
 

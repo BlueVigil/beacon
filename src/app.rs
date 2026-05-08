@@ -237,19 +237,6 @@ impl BeaconApp {
          && !self.is_busy()
    }
 
-   pub fn status_text(&self) -> &'static str {
-      match self.status {
-         AppStatus::Idle => "IDLE",
-         AppStatus::SelectingFile => "FILE",
-         AppStatus::Detecting => "SCAN",
-         AppStatus::Identifying => "ID",
-         AppStatus::Ready => "READY",
-         AppStatus::Uploading => "LOAD",
-         AppStatus::Success => "DONE",
-         AppStatus::Error(_) => "FAULT",
-      }
-   }
-
    fn start_scan(&mut self, cx: &mut Context<Self>) {
       if self.is_busy() {
          return;
