@@ -1,0 +1,17 @@
+[env]
+CC                       = "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang"
+CPATH                    = { force = true, value = "" }
+LIBRARY_PATH             = { force = true, value = "" }
+MACOSX_DEPLOYMENT_TARGET = "14.0"
+SDKROOT                  = "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+
+[target.aarch64-apple-darwin]
+linker = "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang"
+rustflags = [
+  "-C",
+  "link-arg=-isysroot",
+  "-C",
+  "link-arg=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk",
+  "-L",
+  "native=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib",
+]

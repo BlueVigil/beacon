@@ -1,0 +1,25 @@
+*
+!.gitignore
+
+# DOCUMENTATION
+!*.md
+PLAN*.md
+
+# TOOLS
+!scripts/
+!.clippy.toml
+!.rustfmt.toml
+!justfile
+
+
+# BUILD SYSTEMS
+!.github/
+!ci/
+
+# SOURCE
+!src/
+
+# RS
+!.cargo/
+!Cargo.lock
+!Cargo.toml
