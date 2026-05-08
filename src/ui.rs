@@ -22,44 +22,37 @@ use crate::{
       AppStatus,
       BeaconApp,
    },
-   theme::{
-      BLACK,
-      GREEN,
-      GREEN_DARK,
-      GREEN_DIM,
-      MUTED_WHITE,
-      PANEL,
-      PANEL_LINE,
-      RED,
-      RED_DARK,
-      WHITE,
-   },
+   theme::*,
 };
 
 impl Render for BeaconApp {
    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
       div()
          .size_full()
-         .bg(rgb(BLACK))
+         .bg(rgb(BG))
          .flex()
          .justify_center()
-         .p_5()
+         .p_4()
          .child(
             div()
-               .w(px(820.0))
+               .w(px(900.0))
                .h_full()
+               .border_1()
+               .border_color(rgb(BORDER_ACTIVE))
+               .bg(rgb(BG))
+               .p_4()
                .flex()
                .flex_col()
-               .gap_4()
+               .gap_3()
                .child(self.instrument_cluster())
                .child(
                   div()
                      .flex()
-                     .gap_4()
+                     .gap_3()
                      .flex_1()
                      .child(
                         div()
-                           .w(px(380.0))
+                           .w(px(420.0))
                            .flex()
                            .flex_col()
                            .gap_3()
@@ -82,117 +75,146 @@ impl Render for BeaconApp {
    }
 }
 
+const FONT_MONO: &str = "Courier New";
+
 impl BeaconApp {
    fn instrument_cluster(&self) -> impl IntoElement {
+      let error_state = matches!(self.status, AppStatus::Error(_));
+
       div()
-         .h(px(156.0))
-         .rounded(px(22.0))
+         .h(px(150.0))
          .border_1()
-         .border_color(rgb(PANEL_LINE))
-         .bg(rgb(PANEL))
-         .shadow_lg()
+         .border_color(rgb(if error_state { BORDER_ALERT } else { BORDER }))
+         .bg(rgb(SURFACE))
          .flex()
          .flex_col()
-         .justify_between()
-         .p_4()
          .child(
+            div()
+               .h(px(2.0))
+               .bg(rgb(if error_state { ALERT } else { PHOSPHOR_DIM })),
+         )
+         .child(
+            // Top status bar
             div()
                .flex()
                .items_center()
                .justify_between()
+               .px_3()
+               .py_2()
                .child(
                   div()
-                     .text_size(px(12.0))
-                     .text_color(status_color(&self.status))
-                     .font_weight(FontWeight::SEMIBOLD)
-                     .child(self.status_text()),
+                     .flex()
+                     .items_center()
+                     .gap_2()
+                     .child(anno("SN:001"))
+                     .child(
+                        div()
+                           .font_family(FONT_MONO)
+                           .text_size(px(10.0))
+                           .text_color(if error_state {
+                              rgb(ALERT)
+                           } else {
+                              rgb(PHOSPHOR)
+                           })
+                           .font_weight(FontWeight::SEMIBOLD)
+                           .child(self.status_text()),
+                     ),
                )
                .child(
                   div()
                      .flex()
-                     .gap_1()
-                     .child(light(GREEN))
-                     .child(light(if self.selected_hex.is_some() {
-                        GREEN
-                     } else {
-                        GREEN_DIM
-                     }))
-                     .child(light(if matches!(self.status, AppStatus::Error(_)) {
-                        RED
-                     } else {
-                        RED_DARK
-                     }))
-                     .child(light(if self.selected_device_index.is_some() {
-                        GREEN
-                     } else {
-                        GREEN_DIM
-                     })),
+                     .items_center()
+                     .gap_3()
+                     .child(led("SYS", true, PHOSPHOR))
+                     .child(led("HEX", self.selected_hex.is_some(), AMBER))
+                     .child(led("DEV", self.selected_device_index.is_some(), PHOSPHOR))
+                     .child(led("FLT", error_state, ALERT))
+                     .child(anno("24VDC")),
                ),
          )
          .child(
+            // Main readout row
             div()
+               .flex_1()
                .flex()
-               .items_end()
+               .items_center()
                .justify_between()
+               .px_4()
                .child(readout(
                   &format!("{:02}", self.devices.len().min(99)),
-                  "DEVICE MPH",
+                  "DEVICES.DETECTED",
                ))
-               .child(tach_bar())
+               .child(spectrum_analyzer())
                .child(readout(
                   if self.selected_hex.is_some() {
-                     "HX"
+                     "ARMED"
                   } else {
-                     "BE"
+                     "STBY"
                   },
-                  "FIRMWARE",
+                  "FIRMWARE.HEX",
                )),
          )
          .child(
+            // Bottom info bar
             div()
                .flex()
                .items_center()
                .justify_between()
+               .px_3()
+               .py_2()
+               .border_t_1()
+               .border_color(rgb(BORDER))
                .child(
                   div()
                      .flex()
+                     .flex_col()
                      .gap_1()
-                     .child(bar(self.selected_hex.is_some()))
-                     .child(bar(self.selected_device_index.is_some()))
-                     .child(bar(matches!(
-                        self.status,
-                        AppStatus::Ready | AppStatus::Success
-                     )))
-                     .child(bar(matches!(self.status, AppStatus::Uploading))),
+                     .child(anno("CLASS B"))
+                     .child(
+                        div()
+                           .flex()
+                           .gap_2()
+                           .child(level_bar("LNK", self.tycmd.is_some(), PHOSPHOR))
+                           .child(level_bar("HEX", self.selected_hex.is_some(), AMBER))
+                           .child(level_bar("RDY", self.can_upload(), PHOSPHOR))
+                           .child(level_bar(
+                              "UP",
+                              matches!(self.status, AppStatus::Uploading),
+                              PHOSPHOR,
+                           )),
+                     ),
                )
                .child(
                   div()
-                     .text_size(px(38.0))
-                     .text_color(rgb(WHITE))
-                     .font_weight(FontWeight::SEMIBOLD)
-                     .child("Beacon"),
-               )
-               .child(
-                  div()
-                     .text_size(px(12.0))
-                     .text_color(rgb(MUTED_WHITE))
-                     .child("Teensy firmware uploader"),
+                     .flex()
+                     .flex_col()
+                     .items_end()
+                     .gap_2()
+                     .child(
+                        div()
+                           .font_family(FONT_MONO)
+                           .text_size(px(9.0))
+                           .text_color(rgb(TEXT_DIM))
+                           .child("TEENSY FIRMWARE LOADER  v0.1.0"),
+                     )
+                     .child(anno("MFG:USA")),
                ),
          )
    }
 
    fn firmware_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
-      section("FIRMWARE")
-         .child(value_line(
+      panel("MODULE.01  FIRMWARE", self.selected_hex.is_some(), AMBER)
+         .child(data_field(
+            "FILE",
             self
                .selected_hex
                .as_ref()
-               .map(|path| path.display().to_string())
-               .unwrap_or_else(|| "NO HEX SELECTED".to_string()),
+               .map(|p| p.display().to_string())
+               .unwrap_or_else(|| "NO HEX SELECTED".into()),
             self.selected_hex.is_some(),
          ))
-         .child(dashboard_button(
-            "CHOOSE HEX",
+         .child(action_button(
+            "LOAD HEX",
             self.is_busy(),
             cx.listener(Self::choose_hex),
          ))
@@ -201,21 +223,30 @@ impl BeaconApp {
    fn device_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
       let selected = self
          .selected_device_index
-         .and_then(|index| self.devices.get(index))
-         .map(|device| device.label.as_str())
-         .unwrap_or("NO TEENSY SELECTED");
+         .and_then(|i| self.devices.get(i))
+         .map(|d| d.label.as_str())
+         .unwrap_or("NO TEENSY");
 
-      let mut panel = section("DEVICE")
-         .child(value_line(
-            device_status(self),
-            self.selected_device_index.is_some(),
-         ))
-         .child(value_line(selected, self.selected_device_index.is_some()))
-         .child(dashboard_button(
-            "SCAN",
-            self.is_busy(),
-            cx.listener(Self::scan_devices),
-         ));
+      let mut p = panel(
+         "MODULE.02  DEVICE",
+         self.selected_device_index.is_some(),
+         PHOSPHOR,
+      )
+      .child(data_field(
+         "STATUS",
+         device_status(self),
+         self.selected_device_index.is_some(),
+      ))
+      .child(data_field(
+         "TARGET",
+         selected,
+         self.selected_device_index.is_some(),
+      ))
+      .child(action_button(
+         "SCAN USB",
+         self.is_busy(),
+         cx.listener(Self::scan_devices),
+      ));
 
       if self.devices.len() > 1 {
          let rows = self.devices.iter().enumerate().map(|(index, device)| {
@@ -226,59 +257,79 @@ impl BeaconApp {
                .id(id)
                .cursor_pointer()
                .border_1()
-               .border_color(rgb(if selected { GREEN } else { GREEN_DIM }))
-               .bg(rgb(if selected { GREEN_DARK } else { PANEL }))
+               .border_color(rgb(if selected { PHOSPHOR } else { BORDER }))
+               .bg(rgb(if selected { PHOSPHOR_DARK } else { BG }))
                .px_3()
                .py_2()
-               .text_size(px(11.0))
-               .text_color(rgb(if selected { GREEN } else { MUTED_WHITE }))
-               .overflow_hidden()
-               .text_ellipsis()
-               .child(device.label.clone())
-               .on_click(cx.listener(move |this, _event, window, cx| {
-                  this.select_device(index, window, cx);
-               }))
+               .flex()
+               .items_center()
+               .justify_between()
+               .child(
+                  div()
+                     .font_family(FONT_MONO)
+                     .text_size(px(10.0))
+                     .text_color(rgb(if selected { PHOSPHOR } else { TEXT_DIM }))
+                     .overflow_hidden()
+                     .text_ellipsis()
+                     .child(device.label.clone()),
+               )
+               .child(
+                  div()
+                     .w(px(6.0))
+                     .h(px(6.0))
+                     .bg(rgb(if selected { PHOSPHOR } else { BORDER })),
+               )
+               .when(!self.is_busy(), |row| {
+                  row.on_click(cx.listener(move |this, _event, window, cx| {
+                     this.select_device(index, window, cx);
+                  }))
+               })
          });
-
-         panel = panel.child(div().flex().flex_col().gap_2().children(rows));
+         p = p.child(div().flex().flex_col().gap_1().children(rows));
       }
 
-      panel
+      p
    }
 
    fn verify_panel(&self) -> impl IntoElement {
       let identify = self
          .identify_output
          .as_ref()
-         .map(|output| summarize(output))
-         .unwrap_or_else(|| "IDENTIFY PENDING".to_string());
+         .map(|o| summarize(o))
+         .unwrap_or_else(|| "PENDING IDENTIFY".to_string());
 
-      section("VERIFY").child(value_block(identify, self.identify_output.is_some()))
+      panel(
+         "MODULE.03  VERIFY",
+         self.identify_output.is_some(),
+         PHOSPHOR,
+      )
+      .child(data_block(identify, self.identify_output.is_some()))
    }
 
    fn upload_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
-      section("UPLOAD")
-         .child(value_line(upload_status(self), self.can_upload()))
-         .child(dashboard_button(
-            "UPLOAD",
-            !self.can_upload(),
+      let can_upload = self.can_upload();
+      panel("MODULE.04  UPLOAD", can_upload, AMBER)
+         .child(data_field("STATUS", upload_status(self), can_upload))
+         .child(action_button(
+            "EXECUTE UPLOAD",
+            !can_upload,
             cx.listener(Self::upload),
          ))
    }
 
    fn output_panel(&self) -> impl IntoElement {
       let lines = if self.output_lines.is_empty() {
-         vec!["INFO waiting for command output".to_string()]
+         vec!["SYSTEM READY --- WAITING FOR COMMANDS".to_string()]
       } else {
-         self.output_lines.iter().rev().take(10).cloned().collect()
+         self.output_lines.iter().rev().take(12).cloned().collect()
       };
 
-      section("OUTPUT").child(
+      panel("MODULE.05  OUTPUT", !self.output_lines.is_empty(), PHOSPHOR).child(
          div()
-            .h(px(164.0))
+            .h(px(180.0))
             .border_1()
-            .border_color(rgb(GREEN_DIM))
-            .bg(rgb(0x000D05))
+            .border_color(rgb(BORDER))
+            .bg(rgb(BG))
             .p_3()
             .overflow_hidden()
             .flex()
@@ -286,6 +337,7 @@ impl BeaconApp {
             .gap_1()
             .children(lines.into_iter().rev().map(|line| {
                div()
+                  .font_family(FONT_MONO)
                   .text_size(px(10.0))
                   .text_color(log_color(&line))
                   .overflow_hidden()
@@ -299,13 +351,18 @@ impl BeaconApp {
       let message = recovery_message(&self.status);
       let active = message.is_some();
 
-      section("RECOVERY / STATUS").child(value_block(
+      panel(
+         "MODULE.06  RECOVERY",
+         active || matches!(self.status, AppStatus::Success | AppStatus::Ready),
+         if active { ALERT } else { PHOSPHOR },
+      )
+      .child(data_block(
          message.unwrap_or_else(|| {
             match self.status {
                AppStatus::Success => "UPLOAD COMPLETE".to_string(),
-               AppStatus::Ready => "READY TO UPLOAD".to_string(),
-               AppStatus::Uploading => "UPLOAD IN PROGRESS".to_string(),
-               _ => "WAITING".to_string(),
+               AppStatus::Ready => "SYSTEM ARMED AND READY".to_string(),
+               AppStatus::Uploading => "UPLOAD IN PROGRESS...".to_string(),
+               _ => "STANDBY".to_string(),
             }
          }),
          active || matches!(self.status, AppStatus::Success | AppStatus::Ready),
@@ -313,147 +370,242 @@ impl BeaconApp {
    }
 }
 
-fn section(title: &'static str) -> gpui::Div {
+fn panel(title: &'static str, active: bool, accent: u32) -> gpui::Div {
    div()
       .border_1()
-      .border_color(rgb(PANEL_LINE))
-      .bg(rgb(PANEL))
+      .border_color(rgb(if active { accent } else { BORDER }))
+      .bg(rgb(SURFACE))
       .p_3()
       .flex()
       .flex_col()
       .gap_2()
       .child(
          div()
-            .text_size(px(11.0))
-            .text_color(rgb(GREEN))
-            .font_weight(FontWeight::SEMIBOLD)
-            .child(title),
+            .flex()
+            .items_center()
+            .gap_2()
+            .pb_2()
+            .border_b_1()
+            .border_color(rgb(if active { accent } else { BORDER }))
+            .child(
+               div()
+                  .w(px(6.0))
+                  .h(px(6.0))
+                  .bg(rgb(if active { accent } else { BORDER })),
+            )
+            .child(
+               div()
+                  .font_family(FONT_MONO)
+                  .text_size(px(10.0))
+                  .text_color(rgb(if active { accent } else { TEXT }))
+                  .font_weight(FontWeight::SEMIBOLD)
+                  .child(title),
+            ),
       )
 }
 
-fn dashboard_button(
+fn anno(text: &str) -> impl IntoElement {
+   div()
+      .font_family(FONT_MONO)
+      .text_size(px(8.0))
+      .text_color(rgb(TEXT_DIM))
+      .child(text.to_string())
+}
+
+fn action_button(
    label: &'static str,
    disabled: bool,
    listener: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
    div()
-      .id(SharedString::from(format!("button-{label}")))
+      .id(SharedString::from(format!("btn-{label}")))
       .cursor_pointer()
       .border_1()
-      .border_color(rgb(if disabled { GREEN_DIM } else { GREEN }))
-      .bg(rgb(if disabled { PANEL } else { GREEN_DARK }))
+      .border_color(rgb(if disabled { BORDER } else { PHOSPHOR }))
+      .bg(rgb(if disabled { SURFACE } else { PHOSPHOR_DARK }))
       .px_3()
       .py_2()
-      .opacity(if disabled { 0.45 } else { 1.0 })
-      .text_size(px(12.0))
-      .text_color(rgb(if disabled { GREEN_DIM } else { GREEN }))
-      .font_weight(FontWeight::SEMIBOLD)
-      .child(label)
-      .when(!disabled, |button| button.on_click(listener))
+      .flex()
+      .items_center()
+      .justify_center()
+      .gap_2()
+      .child(
+         div()
+            .w(px(6.0))
+            .h(px(6.0))
+            .bg(rgb(if disabled { BORDER } else { PHOSPHOR })),
+      )
+      .child(
+         div()
+            .text_size(px(11.0))
+            .text_color(rgb(if disabled { TEXT_DIM } else { PHOSPHOR }))
+            .font_family(FONT_MONO)
+            .font_weight(FontWeight::SEMIBOLD)
+            .child(label),
+      )
+      .when(!disabled, |btn| btn.on_click(listener))
 }
 
-fn value_line(value: impl Into<String>, active: bool) -> impl IntoElement {
+fn data_field(label: &str, value: impl Into<String>, active: bool) -> impl IntoElement {
    div()
       .border_1()
-      .border_color(rgb(if active { GREEN_DIM } else { PANEL_LINE }))
-      .bg(rgb(if active { GREEN_DARK } else { BLACK }))
+      .border_color(rgb(if active { BORDER_ACTIVE } else { BORDER }))
+      .bg(rgb(if active { SURFACE_ACTIVE } else { BG }))
       .px_3()
       .py_2()
-      .text_size(px(11.0))
-      .text_color(rgb(if active { GREEN } else { MUTED_WHITE }))
-      .overflow_hidden()
-      .text_ellipsis()
-      .child(value.into())
+      .flex()
+      .items_center()
+      .justify_between()
+      .child(
+         div()
+            .font_family(FONT_MONO)
+            .text_size(px(9.0))
+            .text_color(rgb(TEXT_DIM))
+            .child(label.to_string()),
+      )
+      .child(
+         div()
+            .font_family(FONT_MONO)
+            .text_size(px(11.0))
+            .text_color(rgb(if active { PHOSPHOR } else { TEXT_DIM }))
+            .overflow_hidden()
+            .text_ellipsis()
+            .child(value.into()),
+      )
 }
 
-fn value_block(value: impl Into<String>, active: bool) -> impl IntoElement {
+fn data_block(value: impl Into<String>, active: bool) -> impl IntoElement {
    div()
-      .min_h(px(58.0))
+      .min_h(px(54.0))
       .border_1()
-      .border_color(rgb(if active { GREEN_DIM } else { PANEL_LINE }))
-      .bg(rgb(if active { GREEN_DARK } else { BLACK }))
+      .border_color(rgb(if active { BORDER_ACTIVE } else { BORDER }))
+      .bg(rgb(if active { SURFACE_ACTIVE } else { BG }))
       .p_3()
-      .text_size(px(11.0))
-      .text_color(rgb(if active { GREEN } else { MUTED_WHITE }))
+      .font_family(FONT_MONO)
+      .text_size(px(10.0))
+      .text_color(rgb(if active { PHOSPHOR } else { TEXT_DIM }))
       .child(value.into())
 }
 
-fn light(color: u32) -> impl IntoElement {
-   div().w(px(8.0)).h(px(8.0)).bg(rgb(color))
-}
-
-fn bar(active: bool) -> impl IntoElement {
-   div()
-      .w(px(32.0))
-      .h(px(5.0))
-      .bg(rgb(if active { GREEN } else { GREEN_DIM }))
-}
-
-fn readout(value: &str, label: &'static str) -> impl IntoElement {
+fn led(label: &str, active: bool, color: u32) -> impl IntoElement {
    div()
       .flex()
-      .flex_col()
+      .items_center()
       .gap_1()
       .child(
          div()
-            .text_size(px(46.0))
-            .text_color(rgb(GREEN))
-            .font_weight(FontWeight::SEMIBOLD)
+            .w(px(8.0))
+            .h(px(8.0))
+            .bg(rgb(if active { color } else { BORDER }))
+            .border_1()
+            .border_color(rgb(if active { color } else { BORDER })),
+      )
+      .child(
+         div()
+            .font_family(FONT_MONO)
+            .text_size(px(8.0))
+            .text_color(rgb(if active { color } else { TEXT_DIM }))
+            .child(label.to_string()),
+      )
+}
+
+fn level_bar(label: &str, active: bool, color: u32) -> impl IntoElement {
+   div()
+      .flex()
+      .items_center()
+      .gap_1()
+      .child(
+         div()
+            .font_family(FONT_MONO)
+            .text_size(px(8.0))
+            .text_color(rgb(TEXT_DIM))
+            .child(label.to_string()),
+      )
+      .child(
+         div()
+            .w(px(28.0))
+            .h(px(4.0))
+            .bg(rgb(if active { color } else { BORDER })),
+      )
+}
+
+fn readout(value: &str, label: &str) -> impl IntoElement {
+   div()
+      .flex()
+      .flex_col()
+      .items_start()
+      .gap_1()
+      .child(
+         div()
+            .border_1()
+            .border_color(rgb(PHOSPHOR_DIM))
+            .bg(rgb(BG))
+            .px_3()
+            .py_1()
+            .font_family(FONT_MONO)
+            .text_size(px(40.0))
+            .text_color(rgb(PHOSPHOR))
             .child(value.to_string()),
       )
       .child(
          div()
-            .text_size(px(10.0))
-            .text_color(rgb(GREEN_DIM))
-            .child(label),
+            .font_family(FONT_MONO)
+            .text_size(px(9.0))
+            .text_color(rgb(TEXT_DIM))
+            .child(label.to_string()),
       )
 }
 
-fn tach_bar() -> impl IntoElement {
+fn spectrum_analyzer() -> impl IntoElement {
    div()
-      .w(px(210.0))
-      .h(px(54.0))
+      .w(px(220.0))
+      .h(px(56.0))
       .border_1()
-      .border_color(rgb(GREEN_DIM))
-      .bg(rgb(GREEN_DARK))
+      .border_color(rgb(BORDER))
+      .bg(rgb(BG))
       .flex()
-      .items_end()
-      .gap_1()
-      .p_2()
-      .child(tach_column(12, false))
-      .child(tach_column(18, false))
-      .child(tach_column(26, true))
-      .child(tach_column(34, true))
-      .child(tach_column(44, true))
-      .child(tach_column(48, true))
-      .child(tach_column(36, true))
-      .child(tach_column(22, false))
+      .flex_col()
+      .child(
+         div()
+            .flex_1()
+            .flex()
+            .items_end()
+            .justify_center()
+            .gap_1()
+            .px_2()
+            .pt_2()
+            .child(tach_bar(8, false))
+            .child(tach_bar(14, false))
+            .child(tach_bar(22, true))
+            .child(tach_bar(32, true))
+            .child(tach_bar(42, true))
+            .child(tach_bar(38, true))
+            .child(tach_bar(28, true))
+            .child(tach_bar(18, false))
+            .child(tach_bar(10, false))
+            .child(tach_bar(6, false))
+            .child(tach_bar(12, true))
+            .child(tach_bar(20, true)),
+      )
+      .child(div().h(px(1.0)).bg(rgb(PHOSPHOR_DIM)))
 }
 
-fn tach_column(height: i32, active: bool) -> impl IntoElement {
+fn tach_bar(height: i32, active: bool) -> impl IntoElement {
    div()
-      .w(px(12.0))
+      .w(px(10.0))
       .h(px(height as f32))
-      .bg(rgb(if active { GREEN } else { GREEN_DIM }))
-}
-
-fn status_color(status: &AppStatus) -> gpui::Rgba {
-   rgb(if matches!(status, AppStatus::Error(_)) {
-      RED
-   } else {
-      GREEN
-   })
+      .bg(rgb(if active { PHOSPHOR_DIM } else { PHOSPHOR_DARK }))
 }
 
 fn log_color(line: &str) -> gpui::Rgba {
    if line.starts_with("ERR") {
-      rgb(RED)
+      rgb(ALERT)
    } else if line.starts_with("OK") {
-      rgb(GREEN)
+      rgb(PHOSPHOR)
    } else if line.starts_with('$') {
-      rgb(WHITE)
+      rgb(TEXT)
    } else {
-      rgb(MUTED_WHITE)
+      rgb(TEXT_DIM)
    }
 }
 
