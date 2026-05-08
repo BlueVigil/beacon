@@ -68,8 +68,12 @@ impl Tycmd {
       self.run("list", &[])
    }
 
-   pub fn identify(&self) -> Result<CommandOutput> {
-      self.run("identify", &[])
+   pub fn identify(&self, hex_path: &Path) -> Result<CommandOutput> {
+      let hex = hex_path
+         .to_str()
+         .ok_or_else(|| anyhow!("firmware path is not valid UTF-8: {}", hex_path.display()))?;
+
+      self.run("identify", &[hex])
    }
 
    pub fn upload(&self, hex_path: &Path) -> Result<CommandOutput> {

@@ -107,8 +107,14 @@ impl BeaconApp {
             let selection = receiver.await;
 
             let _ = this.update(cx, |this, cx| {
+               this.active_task = None;
+
                match selection {
-                  Ok(Ok(Some(paths))) => this.accept_selected_paths(paths),
+                  Ok(Ok(Some(paths))) => {
+                     if this.accept_selected_paths(paths) {
+                        this.start_identify(cx);
+                     }
+                  },
                   Ok(Ok(None)) => {
                      this.log("file selection cancelled");
                      this.refresh_ready_status();
@@ -123,7 +129,6 @@ impl BeaconApp {
                   },
                }
 
-               this.active_task = None;
                cx.notify();
             });
          },
@@ -152,9 +157,9 @@ impl BeaconApp {
       }
 
       self.selected_device_index = Some(index);
-      self.identify_output = None;
       self.log(format!("selected device: {}", self.devices[index].label));
-      self.start_identify(cx);
+      self.refresh_ready_status();
+      cx.notify();
    }
 
    pub fn upload(
@@ -253,7 +258,6 @@ impl BeaconApp {
       self.status = AppStatus::Detecting;
       self.devices.clear();
       self.selected_device_index = None;
-      self.identify_output = None;
       self.log_command("tycmd list");
       cx.notify();
 
@@ -268,7 +272,7 @@ impl BeaconApp {
                this.active_task = None;
 
                match result {
-                  Ok(output) => this.finish_scan(output, cx),
+                  Ok(output) => this.finish_scan(output),
                   Err(error) => {
                      this.status = AppStatus::Error(AppErrorKind::Io(error.to_string()));
                      this.log_error(format!("scan failed before command completed: {error}"));
@@ -283,7 +287,7 @@ impl BeaconApp {
       self.active_task = Some(task);
    }
 
-   fn finish_scan(&mut self, output: CommandOutput, cx: &mut Context<Self>) {
+   fn finish_scan(&mut self, output: CommandOutput) {
       self.append_command_output(&output);
 
       if !output.is_success() {
@@ -306,7 +310,7 @@ impl BeaconApp {
          1 => {
             self.selected_device_index = Some(0);
             self.log(format!("detected device: {}", self.devices[0].label));
-            self.start_identify(cx);
+            self.refresh_ready_status();
          },
          count => {
             self.selected_device_index = None;
@@ -324,15 +328,21 @@ impl BeaconApp {
          return;
       };
 
+      let Some(hex_path) = self.selected_hex.clone() else {
+         self.refresh_ready_status();
+         return;
+      };
+
       self.status = AppStatus::Identifying;
-      self.log_command("tycmd identify");
+      self.identify_output = Some("checking firmware file...".to_string());
+      self.log_command(format!("tycmd identify {}", hex_path.display()));
       cx.notify();
 
       let task = cx.spawn(
          async move |this: WeakEntity<BeaconApp>, cx: &mut AsyncApp| {
             let result: anyhow::Result<CommandOutput> = cx
                .background_executor()
-               .spawn(async move { tycmd.identify() })
+               .spawn(async move { tycmd.identify(&hex_path) })
                .await;
 
             let _ = this.update(cx, |this, cx| {
@@ -388,22 +398,23 @@ impl BeaconApp {
       }
    }
 
-   fn accept_selected_paths(&mut self, paths: Vec<PathBuf>) {
+   fn accept_selected_paths(&mut self, paths: Vec<PathBuf>) -> bool {
       let Some(path) = paths.into_iter().next() else {
          self.log("file selection cancelled");
          self.refresh_ready_status();
-         return;
+         return false;
       };
 
       if !tycmd::is_hex_file(&path) {
          self.status = AppStatus::Error(AppErrorKind::InvalidHexFile(path.clone()));
          self.log_error(format!("rejected non-hex file: {}", path.display()));
-         return;
+         return false;
       }
 
       self.selected_hex = Some(path.clone());
+      self.identify_output = None;
       self.log_success(format!("selected firmware: {}", path.display()));
-      self.refresh_ready_status();
+      true
    }
 
    fn refresh_ready_status(&mut self) {

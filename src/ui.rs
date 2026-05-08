@@ -61,8 +61,7 @@ impl Render for BeaconApp {
                            .flex_col()
                            .gap_3()
                            .child(self.firmware_panel(cx))
-                           .child(self.device_panel(cx))
-                           .child(self.verify_panel()),
+                           .child(self.device_panel(cx)),
                      )
                      .child(
                         div()
@@ -72,8 +71,7 @@ impl Render for BeaconApp {
                            .flex_col()
                            .gap_3()
                            .child(self.upload_panel(cx))
-                           .child(self.output_panel())
-                           .child(self.recovery_panel()),
+                           .child(self.output_panel()),
                      ),
                ),
          )
@@ -162,6 +160,18 @@ impl BeaconApp {
    }
 
    fn firmware_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
+      let identify = self
+         .identify_output
+         .as_ref()
+         .map(|o| summarize(o))
+         .unwrap_or_else(|| {
+            if self.selected_hex.is_some() {
+               "CHECK PENDING".to_string()
+            } else {
+               "NO FIRMWARE INFO".to_string()
+            }
+         });
+
       panel("[01]", "FIRMWARE", self.selected_hex.is_some(), AMBER)
          .child(data_field(
             "FILE",
@@ -172,6 +182,7 @@ impl BeaconApp {
                .unwrap_or_else(|| "NO HEX SELECTED".into()),
             self.selected_hex.is_some(),
          ))
+         .child(data_block(identify, self.selected_hex.is_some()))
          .child(action_button(
             "LOAD HEX",
             self.is_busy(),
@@ -251,17 +262,6 @@ impl BeaconApp {
       p
    }
 
-   fn verify_panel(&self) -> impl IntoElement {
-      let identify = self
-         .identify_output
-         .as_ref()
-         .map(|o| summarize(o))
-         .unwrap_or_else(|| "PENDING IDENTIFY".to_string());
-
-      panel("[03]", "VERIFY", self.identify_output.is_some(), PHOSPHOR)
-         .child(data_block(identify, self.identify_output.is_some()))
-   }
-
    fn upload_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
       let can_upload = self.can_upload();
       panel("[04]", "UPLOAD", can_upload, AMBER)
@@ -302,29 +302,6 @@ impl BeaconApp {
                   .child(line)
             })),
       )
-   }
-
-   fn recovery_panel(&self) -> impl IntoElement {
-      let message = recovery_message(&self.status);
-      let active = message.is_some();
-
-      panel(
-         "[06]",
-         "RECOVERY",
-         active || matches!(self.status, AppStatus::Success | AppStatus::Ready),
-         if active { ALERT } else { PHOSPHOR },
-      )
-      .child(data_block(
-         message.unwrap_or_else(|| {
-            match self.status {
-               AppStatus::Success => "UPLOAD COMPLETE".to_string(),
-               AppStatus::Ready => "READY TO UPLOAD".to_string(),
-               AppStatus::Uploading => "UPLOAD IN PROGRESS...".to_string(),
-               _ => "WAITING".to_string(),
-            }
-         }),
-         active || matches!(self.status, AppStatus::Success | AppStatus::Ready),
-      ))
    }
 }
 
@@ -384,7 +361,7 @@ fn status_sentence(app: &BeaconApp) -> &'static str {
       AppStatus::Idle => "Choose a firmware file or scan for a Teensy.",
       AppStatus::SelectingFile => "Choosing firmware file.",
       AppStatus::Detecting => "Scanning for connected Teensy boards.",
-      AppStatus::Identifying => "Reading Teensy identity.",
+      AppStatus::Identifying => "Checking firmware file.",
       AppStatus::Ready => "Ready to upload.",
       AppStatus::Uploading => "Uploading firmware.",
       AppStatus::Success => "Upload complete.",
@@ -558,7 +535,7 @@ fn log_color(line: &str) -> gpui::Rgba {
 fn device_status(app: &BeaconApp) -> String {
    match app.status {
       AppStatus::Detecting => "SCANNING USB".to_string(),
-      AppStatus::Identifying => "IDENTIFYING".to_string(),
+      AppStatus::Identifying => "CHECKING FIRMWARE".to_string(),
       AppStatus::Error(AppErrorKind::NoDevice) => "NO DEVICE".to_string(),
       AppStatus::Error(AppErrorKind::MultipleDevicesNoSelection) => {
          "MULTIPLE DEVICES - SELECT ONE".to_string()
@@ -594,41 +571,5 @@ fn summarize(output: &str) -> String {
       "IDENTIFY COMPLETE".to_string()
    } else {
       summary
-   }
-}
-
-fn recovery_message(status: &AppStatus) -> Option<String> {
-   match status {
-      AppStatus::Error(AppErrorKind::MissingTycmd(path)) => {
-         Some(format!(
-            "TYCMD SIDECAR MISSING\nExpected:\n{}",
-            path.display()
-         ))
-      },
-      AppStatus::Error(AppErrorKind::InvalidHexFile(path)) => {
-         Some(format!(
-            "INVALID HEX FILE\nSelected path is not a .hex firmware file:\n{}",
-            path.display()
-         ))
-      },
-      AppStatus::Error(AppErrorKind::NoDevice)
-      | AppStatus::Error(AppErrorKind::CommandFailed { .. }) => {
-         Some(
-            "NO DEVICE / UPLOAD FAULT\n1. Confirm the Teensy is connected over USB.\n2. Press the \
-             physical Program button on the Teensy.\n3. Disconnect extra Teensy boards if more \
-             than one is attached.\n4. Unplug and reconnect USB.\n5. Press SCAN, then UPLOAD \
-             again."
-               .to_string(),
-         )
-      },
-      AppStatus::Error(AppErrorKind::MultipleDevicesNoSelection) => {
-         Some(
-            "MULTIPLE TEENSYS DETECTED\nSelect one device before upload. If upload targeting is \
-             uncertain, disconnect extras and scan again."
-               .to_string(),
-         )
-      },
-      AppStatus::Error(AppErrorKind::Io(message)) => Some(format!("I/O FAULT\n{message}")),
-      _ => None,
    }
 }
