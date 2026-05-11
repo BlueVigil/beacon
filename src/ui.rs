@@ -10,6 +10,7 @@ use gpui::{
    prelude::*,
    px,
    rgb,
+   svg,
 };
 
 use crate::{
@@ -22,7 +23,9 @@ use crate::{
 };
 
 impl Render for BeaconApp {
-   fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+   fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+      let connector_caret_count = workflow_connector_caret_count(window);
+
       div()
          .size_full()
          .bg(rgb(BG))
@@ -56,9 +59,9 @@ impl Render for BeaconApp {
                            .flex()
                            .flex_col()
                            .child(self.firmware_panel(cx))
-                           .child(workflow_connector(device_module_status(self)))
+                           .child(workflow_connector(connector_caret_count))
                            .child(self.device_panel(cx))
-                           .child(workflow_connector(upload_module_status(self)))
+                           .child(workflow_connector(connector_caret_count))
                            .child(self.upload_panel(cx)),
                      )
                      .child(
@@ -81,6 +84,11 @@ struct OutputLineDisplay {
    is_latest_block: bool,
 }
 const FONT_TITLE: &str = "Menlo";
+const WORKFLOW_CONNECTOR_MARGIN: f32 = 18.0;
+const WORKFLOW_CONNECTOR_CARET_HEIGHT: f32 = 8.0;
+const WORKFLOW_CONNECTOR_CARET_SLOT: f32 = 8.0;
+const WORKFLOW_PANEL_HEIGHT_ESTIMATE: f32 = 483.0;
+const WORKFLOW_FIXED_VERTICAL_SPACE: f32 = 226.0;
 
 #[derive(Clone, Copy)]
 enum ModuleStatus {
@@ -394,28 +402,49 @@ fn module_status_color(status: ModuleStatus) -> u32 {
    }
 }
 
-fn workflow_connector(status: ModuleStatus) -> impl IntoElement {
+fn workflow_connector(caret_count: usize) -> impl IntoElement {
    div()
       .flex_1()
-      .min_h(px(32.0))
+      .min_h(px(56.0))
       .flex()
-      .items_center()
-      .justify_center()
+      .flex_col()
+      .child(div().flex_none().h(px(WORKFLOW_CONNECTOR_MARGIN)))
       .child(
          div()
+            .flex_1()
+            .min_h(px(0.0))
             .flex()
-            .flex_col()
             .items_center()
-            .gap_1()
-            .children((0..5).map(|_| {
-               div()
-                  .font_family(FONT_MONO)
-                  .text_size(px(13.0))
-                  .line_height(px(10.0))
-                  .text_color(rgb(module_status_color(status)))
-                  .child("⌄")
-            })),
+            .justify_center()
+            .child(div().flex().flex_col().items_center().gap_0().children(
+               (0..caret_count).map(|_| {
+                  div()
+                     .h(px(WORKFLOW_CONNECTOR_CARET_SLOT))
+                     .flex()
+                     .items_center()
+                     .justify_center()
+                     .child(
+                        svg()
+                           .path("icons/caret-down.svg")
+                           .w(px(26.0))
+                           .h(px(WORKFLOW_CONNECTOR_CARET_HEIGHT))
+                           .text_color(rgb(PHOSPHOR_DARK)),
+                     )
+               }),
+            )),
       )
+      .child(div().flex_none().h(px(WORKFLOW_CONNECTOR_MARGIN)))
+}
+
+fn workflow_connector_caret_count(window: &Window) -> usize {
+   let viewport_height = f32::from(window.viewport_size().height);
+   let connector_height =
+      (viewport_height - WORKFLOW_FIXED_VERTICAL_SPACE - WORKFLOW_PANEL_HEIGHT_ESTIMATE) / 2.0;
+   let drawable_height = connector_height - WORKFLOW_CONNECTOR_MARGIN * 2.0;
+
+   (drawable_height / WORKFLOW_CONNECTOR_CARET_SLOT)
+      .floor()
+      .clamp(1.0, 24.0) as usize
 }
 
 fn step_indicator(label: &str, status: ModuleStatus) -> impl IntoElement {
