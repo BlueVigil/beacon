@@ -10,6 +10,7 @@ use gpui::{
    InspectorElementId,
    IntoElement,
    LayoutId,
+   MouseButton,
    Pixels,
    Render,
    SharedString,
@@ -87,7 +88,7 @@ impl Render for BeaconApp {
 }
 
 const FONT_MONO: &str = "Iosevka Nerd Font Mono";
-const FONT_TITLE: &str = "SF Compact Display";
+const FONT_TITLE: &str = "DIN Condensed";
 
 const WORKFLOW_CONNECTOR_MARGIN: f32 = 24.0;
 const WORKFLOW_CONNECTOR_CARET_WIDTH: f32 = 14.0;
@@ -129,6 +130,7 @@ impl BeaconApp {
                .justify_between()
                .px_3()
                .py_1p5()
+               .on_mouse_down(MouseButton::Left, |_, window, _| window.start_window_move())
                .child(
                   div().flex().flex_col().gap_1().child(
                      div()
@@ -399,7 +401,7 @@ fn module_status_color(status: ModuleStatus) -> u32 {
    match status {
       ModuleStatus::Pending => PHOSPHOR_DARK,
       ModuleStatus::Next => AMBER,
-      ModuleStatus::Done => PHOSPHOR,
+      ModuleStatus::Done => DONE,
    }
 }
 
@@ -667,7 +669,7 @@ fn active_log_color(line: &str) -> gpui::Rgba {
    if line.starts_with("ERR") {
       rgb(ALERT)
    } else if line.starts_with("OK") {
-      rgb(PHOSPHOR)
+      rgb(DONE)
    } else if line.starts_with('$') {
       rgb(TEXT)
    } else {
@@ -679,7 +681,7 @@ fn stale_log_color(line: &str) -> gpui::Rgba {
    if line.starts_with("ERR") {
       rgb(0x7A3A1A)
    } else if line.starts_with("OK") {
-      rgb(PHOSPHOR_DIM)
+      rgb(DONE_DIM)
    } else if line.starts_with('$') {
       rgb(TEXT_DIM)
    } else {
