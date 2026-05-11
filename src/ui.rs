@@ -86,8 +86,8 @@ impl Render for BeaconApp {
    }
 }
 
-const FONT_MONO: &str = "Courier New";
-const FONT_TITLE: &str = "Menlo";
+const FONT_MONO: &str = "Iosevka Nerd Font Mono";
+const FONT_TITLE: &str = "SF Compact Display";
 
 const WORKFLOW_CONNECTOR_MARGIN: f32 = 24.0;
 const WORKFLOW_CONNECTOR_CARET_WIDTH: f32 = 14.0;
@@ -188,6 +188,7 @@ impl BeaconApp {
          .child(action_button(
             "LOAD HEX",
             self.is_busy(),
+            firmware_module_status(self),
             cx.listener(Self::choose_hex),
          ))
    }
@@ -214,6 +215,7 @@ impl BeaconApp {
          .child(action_button(
             "SCAN USB",
             self.is_busy(),
+            device_module_status(self),
             cx.listener(Self::scan_devices),
          ));
 
@@ -268,6 +270,7 @@ impl BeaconApp {
          .child(action_button(
             "EXECUTE UPLOAD",
             !can_upload,
+            upload_module_status(self),
             cx.listener(Self::upload),
          ))
    }
@@ -552,6 +555,7 @@ fn status_dot(status: ModuleStatus) -> impl IntoElement {
 fn action_button(
    label: &'static str,
    disabled: bool,
+   status: ModuleStatus,
    listener: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
    div()
@@ -568,9 +572,10 @@ fn action_button(
       .gap_1p5()
       .child(
          div()
+            .my_auto()
             .w(px(6.0))
             .h(px(6.0))
-            .bg(rgb(if disabled { BORDER } else { PHOSPHOR_DIM })),
+            .bg(rgb(module_status_color(status))),
       )
       .child(
          div()
@@ -672,13 +677,13 @@ fn active_log_color(line: &str) -> gpui::Rgba {
 
 fn stale_log_color(line: &str) -> gpui::Rgba {
    if line.starts_with("ERR") {
-      rgb(0x8A4545)
+      rgb(0x7A3A1A)
    } else if line.starts_with("OK") {
       rgb(PHOSPHOR_DIM)
    } else if line.starts_with('$') {
       rgb(TEXT_DIM)
    } else {
-      rgb(0x384838)
+      rgb(0x2E2410)
    }
 }
 

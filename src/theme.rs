@@ -1,18 +1,18 @@
-pub const BG: u32 = 0x050505;
-pub const SURFACE: u32 = 0x080C08;
-pub const SURFACE_ACTIVE: u32 = 0x0D140D;
+pub const BG: u32 = 0x0C0B07;
+pub const SURFACE: u32 = 0x111008;
+pub const SURFACE_ACTIVE: u32 = 0x1A180A;
 
-pub const PHOSPHOR: u32 = 0x33FF57;
-pub const PHOSPHOR_DIM: u32 = 0x1A5C2A;
-pub const PHOSPHOR_DARK: u32 = 0x0A1F0F;
+pub const PHOSPHOR: u32 = 0xC87828;
+pub const PHOSPHOR_DIM: u32 = 0x5C3A14;
+pub const PHOSPHOR_DARK: u32 = 0x1E1408;
 
-pub const AMBER: u32 = 0xFF6A00;
+pub const AMBER: u32 = 0xFF8C1A;
 
-pub const ALERT: u32 = 0xFF2A2A;
+pub const ALERT: u32 = 0xFF3214;
 
-pub const TEXT: u32 = 0xC8D8C8;
-pub const TEXT_DIM: u32 = 0x556855;
+pub const TEXT: u32 = 0xB88A28;
+pub const TEXT_DIM: u32 = 0x5A4218;
 
-pub const BORDER: u32 = 0x1A2E1A;
-pub const BORDER_ACTIVE: u32 = 0x2A4A2A;
-pub const BORDER_ALERT: u32 = 0x5C1A1A;
+pub const BORDER: u32 = 0x2E2210;
+pub const BORDER_ACTIVE: u32 = 0x4A3818;
+pub const BORDER_ALERT: u32 = 0x5C2210;
