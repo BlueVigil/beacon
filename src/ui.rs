@@ -106,7 +106,7 @@ impl BeaconApp {
                .flex()
                .items_center()
                .justify_between()
-               .pl(px(80.0))
+               .pl(px(89.0))
                .pr_3()
                .on_mouse_down(MouseButton::Left, |_, window, _| window.start_window_move())
                .child(
