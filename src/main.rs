@@ -22,6 +22,7 @@ use gpui::{
    WindowBounds,
    WindowDecorations,
    WindowOptions,
+   point,
    px,
    size,
 };
@@ -67,6 +68,7 @@ fn main() {
                window_min_size: Some(size(px(900.0), px(840.0))),
                titlebar: Some(TitlebarOptions {
                   appears_transparent: true,
+                  traffic_light_position: Some(point(px(12.0), px(10.0))),
                   ..Default::default()
                }),
                window_decorations: Some(WindowDecorations::Client),

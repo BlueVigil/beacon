@@ -37,51 +37,35 @@ impl Render for BeaconApp {
          .size_full()
          .bg(rgb(BG))
          .flex()
-         .justify_center()
-         .p_3()
+         .flex_col()
+         .child(self.title_bar())
          .child(
             div()
-               .w_full()
-               .max_w(px(1240.0))
-               .min_w(px(820.0))
-               .h_full()
-               .border_1()
-               .border_color(rgb(BORDER_ACTIVE))
-               .bg(rgb(BG))
-               .p_3()
+               .flex_1()
+               .min_h(px(0.0))
                .flex()
-               .flex_col()
                .gap_3()
-               .child(self.instrument_cluster())
+               .p_3()
                .child(
                   div()
-                     .flex()
-                     .gap_3()
                      .flex_1()
-                     .min_h(px(0.0))
-                     .child(
-                        div()
-                           .flex_1()
-                           .flex_basis(px(390.0))
-                           .min_w(px(0.0))
-                           .flex()
-                           .flex_col()
-                           .overflow_hidden()
-                           .child(self.firmware_panel(cx))
-                           .child(WorkflowConnector::new("connector-1"))
-                           .child(self.device_panel(cx))
-                           .child(WorkflowConnector::new("connector-2"))
-                           .child(self.upload_panel(cx)),
-                     )
-                     .child(
-                        div()
-                           .flex_1()
-                           .flex_basis(px(460.0))
-                           .min_w(px(0.0))
-                           .flex()
-                           .flex_col()
-                           .child(self.output_panel()),
-                     ),
+                     .min_w(px(0.0))
+                     .flex()
+                     .flex_col()
+                     .overflow_hidden()
+                     .child(self.firmware_panel(cx))
+                     .child(WorkflowConnector::new("connector-1"))
+                     .child(self.device_panel(cx))
+                     .child(WorkflowConnector::new("connector-2"))
+                     .child(self.upload_panel(cx)),
+               )
+               .child(
+                  div()
+                     .flex_1()
+                     .min_w(px(0.0))
+                     .flex()
+                     .flex_col()
+                     .child(self.output_panel()),
                ),
          )
    }
@@ -108,38 +92,31 @@ enum ModuleStatus {
 }
 
 impl BeaconApp {
-   fn instrument_cluster(&self) -> impl IntoElement {
+   fn title_bar(&self) -> impl IntoElement {
       let error_state = matches!(self.status, AppStatus::Error(_));
 
       div()
-         .h(px(150.0))
-         .border_1()
-         .border_color(rgb(if error_state { BORDER_ALERT } else { BORDER }))
+         .h(px(34.0))
          .bg(rgb(SURFACE))
          .flex()
          .flex_col()
          .child(
             div()
-               .h(px(2.0))
-               .bg(rgb(if error_state { ALERT } else { PHOSPHOR_DIM })),
-         )
-         .child(
-            div()
+               .h(px(33.0))
                .flex()
                .items_center()
                .justify_between()
-               .px_3()
-               .py_1p5()
+               .pl(px(80.0))
+               .pr_3()
                .on_mouse_down(MouseButton::Left, |_, window, _| window.start_window_move())
                .child(
-                  div().flex().flex_col().gap_1().child(
-                     div()
-                        .font_family(FONT_TITLE)
-                        .text_size(px(18.0))
-                        .text_color(rgb(PHOSPHOR))
-                        .font_weight(FontWeight::BOLD)
-                        .child("BEACON"),
-                  ),
+                  div()
+                     .font_family(FONT_TITLE)
+                     .text_size(px(20.0))
+                     .text_color(rgb(PHOSPHOR))
+                     .font_weight(FontWeight::BOLD)
+                     .pt(px(7.5))
+                     .child("BEACON"),
                )
                .child(
                   div()
@@ -161,13 +138,8 @@ impl BeaconApp {
          )
          .child(
             div()
-               .flex_1()
-               .flex()
-               .items_center()
-               .px_3()
-               .py_1p5()
-               .border_t_1()
-               .border_color(rgb(BORDER)),
+               .h(px(1.1))
+               .bg(rgb(if error_state { ALERT } else { PHOSPHOR_DIM })),
          )
    }
 
@@ -533,6 +505,7 @@ fn step_indicator(label: &str, status: ModuleStatus) -> impl IntoElement {
             .font_family(FONT_MONO)
             .text_size(px(9.0))
             .text_color(rgb(if done { TEXT } else { TEXT_DIM }))
+            .pt(px(2.0))
             .child(label.to_string()),
       )
 }

@@ -18,4 +18,3 @@ pub const TEXT_DIM: u32 = 0x5A4218;
 
 pub const BORDER: u32 = 0x2E2210;
 pub const BORDER_ACTIVE: u32 = 0x4A3818;
-pub const BORDER_ALERT: u32 = 0x5C2210;
