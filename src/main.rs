@@ -57,12 +57,12 @@ fn main() {
          base: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets"),
       })
       .run(|cx: &mut App| {
-         let bounds = Bounds::centered(None, size(px(960.0), px(640.0)), cx);
+         let bounds = Bounds::centered(None, size(px(1080.0), px(900.0)), cx);
 
          cx.open_window(
             WindowOptions {
                window_bounds: Some(WindowBounds::Windowed(bounds)),
-               window_min_size: Some(size(px(900.0), px(600.0))),
+               window_min_size: Some(size(px(900.0), px(840.0))),
                ..Default::default()
             },
             |_, cx| cx.new(BeaconApp::new),

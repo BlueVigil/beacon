@@ -1,8 +1,16 @@
 use gpui::{
+   AnyElement,
    App,
+   Bounds,
    Context,
+   Element,
+   ElementId,
    FontWeight,
+   GlobalElementId,
+   InspectorElementId,
    IntoElement,
+   LayoutId,
+   Pixels,
    Render,
    SharedString,
    Window,
@@ -23,25 +31,23 @@ use crate::{
 };
 
 impl Render for BeaconApp {
-   fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-      let connector_caret_count = workflow_connector_caret_count(window);
-
+   fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
       div()
          .size_full()
          .bg(rgb(BG))
          .flex()
          .justify_center()
-         .p_4()
+         .p_3()
          .child(
             div()
                .w_full()
                .max_w(px(1240.0))
-               .min_w(px(860.0))
+               .min_w(px(820.0))
                .h_full()
                .border_1()
                .border_color(rgb(BORDER_ACTIVE))
                .bg(rgb(BG))
-               .p_4()
+               .p_3()
                .flex()
                .flex_col()
                .gap_3()
@@ -56,18 +62,21 @@ impl Render for BeaconApp {
                         div()
                            .flex_1()
                            .flex_basis(px(390.0))
+                           .min_w(px(0.0))
                            .flex()
                            .flex_col()
+                           .overflow_hidden()
                            .child(self.firmware_panel(cx))
-                           .child(workflow_connector(connector_caret_count))
+                           .child(WorkflowConnector::new("connector-1"))
                            .child(self.device_panel(cx))
-                           .child(workflow_connector(connector_caret_count))
+                           .child(WorkflowConnector::new("connector-2"))
                            .child(self.upload_panel(cx)),
                      )
                      .child(
                         div()
                            .flex_1()
                            .flex_basis(px(460.0))
+                           .min_w(px(0.0))
                            .flex()
                            .flex_col()
                            .child(self.output_panel()),
@@ -78,17 +87,17 @@ impl Render for BeaconApp {
 }
 
 const FONT_MONO: &str = "Courier New";
+const FONT_TITLE: &str = "Menlo";
+
+const WORKFLOW_CONNECTOR_MARGIN: f32 = 24.0;
+const WORKFLOW_CONNECTOR_CARET_WIDTH: f32 = 14.0;
+const WORKFLOW_CONNECTOR_CARET_HEIGHT: f32 = 5.0;
+const WORKFLOW_CONNECTOR_CARET_SLOT: f32 = 6.0;
 
 struct OutputLineDisplay {
    line:            String,
    is_latest_block: bool,
 }
-const FONT_TITLE: &str = "Menlo";
-const WORKFLOW_CONNECTOR_MARGIN: f32 = 18.0;
-const WORKFLOW_CONNECTOR_CARET_HEIGHT: f32 = 8.0;
-const WORKFLOW_CONNECTOR_CARET_SLOT: f32 = 8.0;
-const WORKFLOW_PANEL_HEIGHT_ESTIMATE: f32 = 483.0;
-const WORKFLOW_FIXED_VERTICAL_SPACE: f32 = 226.0;
 
 #[derive(Clone, Copy)]
 enum ModuleStatus {
@@ -118,8 +127,8 @@ impl BeaconApp {
                .flex()
                .items_center()
                .justify_between()
-               .px_4()
-               .py_2()
+               .px_3()
+               .py_1p5()
                .child(
                   div().flex().flex_col().gap_1().child(
                      div()
@@ -134,7 +143,7 @@ impl BeaconApp {
                   div()
                      .flex()
                      .items_center()
-                     .gap_2()
+                     .gap_1p5()
                      .child(step_indicator(
                         "File selected",
                         firmware_module_status(self),
@@ -153,8 +162,8 @@ impl BeaconApp {
                .flex_1()
                .flex()
                .items_center()
-               .px_4()
-               .py_2()
+               .px_3()
+               .py_1p5()
                .border_t_1()
                .border_color(rgb(BORDER)),
          )
@@ -175,15 +184,6 @@ impl BeaconApp {
 
       panel("[01]", "FIRMWARE", firmware_module_status(self))
          .flex_none()
-         .child(data_field(
-            "FILE",
-            self
-               .selected_hex
-               .as_ref()
-               .map(|p| p.display().to_string())
-               .unwrap_or_else(|| "NO HEX SELECTED".into()),
-            self.selected_hex.is_some(),
-         ))
          .child(data_block(identify, self.selected_hex.is_some()))
          .child(action_button(
             "LOAD HEX",
@@ -229,7 +229,7 @@ impl BeaconApp {
                .border_color(rgb(if selected { PHOSPHOR } else { BORDER }))
                .bg(rgb(if selected { PHOSPHOR_DARK } else { BG }))
                .px_3()
-               .py_2()
+               .py_1p5()
                .flex()
                .items_center()
                .justify_between()
@@ -325,15 +325,13 @@ fn panel(index: &'static str, title: &'static str, status: ModuleStatus) -> gpui
       .p_3()
       .flex()
       .flex_col()
-      .gap_2()
+      .gap_1p5()
       .child(
          div()
             .flex()
             .items_center()
-            .gap_2()
-            .pb_2()
-            .border_b_1()
-            .border_color(rgb(BORDER))
+            .gap_1p5()
+            .pb_1p5()
             .child(
                div()
                   .w(px(6.0))
@@ -402,49 +400,119 @@ fn module_status_color(status: ModuleStatus) -> u32 {
    }
 }
 
-fn workflow_connector(caret_count: usize) -> impl IntoElement {
-   div()
-      .flex_1()
-      .min_h(px(56.0))
-      .flex()
-      .flex_col()
-      .child(div().flex_none().h(px(WORKFLOW_CONNECTOR_MARGIN)))
-      .child(
-         div()
-            .flex_1()
-            .min_h(px(0.0))
-            .flex()
-            .items_center()
-            .justify_center()
-            .child(div().flex().flex_col().items_center().gap_0().children(
-               (0..caret_count).map(|_| {
-                  div()
-                     .h(px(WORKFLOW_CONNECTOR_CARET_SLOT))
-                     .flex()
-                     .items_center()
-                     .justify_center()
-                     .child(
-                        svg()
-                           .path("icons/caret-down.svg")
-                           .w(px(26.0))
-                           .h(px(WORKFLOW_CONNECTOR_CARET_HEIGHT))
-                           .text_color(rgb(PHOSPHOR_DARK)),
-                     )
-               }),
-            )),
-      )
-      .child(div().flex_none().h(px(WORKFLOW_CONNECTOR_MARGIN)))
+struct WorkflowConnector {
+   id: ElementId,
 }
 
-fn workflow_connector_caret_count(window: &Window) -> usize {
-   let viewport_height = f32::from(window.viewport_size().height);
-   let connector_height =
-      (viewport_height - WORKFLOW_FIXED_VERTICAL_SPACE - WORKFLOW_PANEL_HEIGHT_ESTIMATE) / 2.0;
-   let drawable_height = connector_height - WORKFLOW_CONNECTOR_MARGIN * 2.0;
+impl WorkflowConnector {
+   fn new(id: impl Into<ElementId>) -> Self {
+      Self { id: id.into() }
+   }
 
-   (drawable_height / WORKFLOW_CONNECTOR_CARET_SLOT)
-      .floor()
-      .clamp(1.0, 24.0) as usize
+   fn build_inner(caret_count: usize) -> AnyElement {
+      div()
+         .flex_1()
+         .min_h(px(56.0))
+         .flex()
+         .flex_col()
+         .child(div().flex_none().h(px(WORKFLOW_CONNECTOR_MARGIN)))
+         .child(
+            div()
+               .flex_1()
+               .min_h(px(0.0))
+               .flex()
+               .items_center()
+               .justify_center()
+               .child(div().flex().flex_col().items_center().gap_0().children(
+                  (0..caret_count).map(|_| {
+                     div()
+                        .h(px(WORKFLOW_CONNECTOR_CARET_SLOT))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(
+                           svg()
+                              .path("icons/caret-down.svg")
+                              .w(px(WORKFLOW_CONNECTOR_CARET_WIDTH))
+                              .h(px(WORKFLOW_CONNECTOR_CARET_HEIGHT))
+                              .text_color(rgb(PHOSPHOR_DARK)),
+                        )
+                  }),
+               )),
+         )
+         .child(div().flex_none().h(px(WORKFLOW_CONNECTOR_MARGIN)))
+         .into_any_element()
+   }
+}
+
+impl IntoElement for WorkflowConnector {
+   type Element = Self;
+
+   fn into_element(self) -> Self {
+      self
+   }
+}
+
+impl Element for WorkflowConnector {
+   type RequestLayoutState = AnyElement;
+   type PrepaintState = ();
+
+   fn id(&self) -> Option<ElementId> {
+      Some(self.id.clone())
+   }
+
+   fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
+      None
+   }
+
+   fn request_layout(
+      &mut self,
+      global_id: Option<&GlobalElementId>,
+      _inspector_id: Option<&InspectorElementId>,
+      window: &mut Window,
+      cx: &mut App,
+   ) -> (LayoutId, AnyElement) {
+      let caret_count =
+         window.with_element_state::<f32, _>(global_id.unwrap(), |prev_height, _window| {
+            let height = prev_height.unwrap_or(0.0);
+            let drawable = height - WORKFLOW_CONNECTOR_MARGIN * 2.0;
+            let count = (drawable / WORKFLOW_CONNECTOR_CARET_SLOT)
+               .floor()
+               .clamp(1.0, 24.0) as usize;
+            (count, height)
+         });
+
+      let mut element = Self::build_inner(caret_count);
+      let layout_id = element.request_layout(window, cx);
+      (layout_id, element)
+   }
+
+   fn prepaint(
+      &mut self,
+      global_id: Option<&GlobalElementId>,
+      _inspector_id: Option<&InspectorElementId>,
+      bounds: Bounds<Pixels>,
+      element: &mut AnyElement,
+      window: &mut Window,
+      cx: &mut App,
+   ) {
+      let actual_height = f32::from(bounds.size.height);
+      window.with_element_state::<f32, _>(global_id.unwrap(), |_, _| ((), actual_height));
+      element.prepaint(window, cx);
+   }
+
+   fn paint(
+      &mut self,
+      _global_id: Option<&GlobalElementId>,
+      _inspector_id: Option<&InspectorElementId>,
+      _bounds: Bounds<Pixels>,
+      element: &mut AnyElement,
+      _prepaint: &mut (),
+      window: &mut Window,
+      cx: &mut App,
+   ) {
+      element.paint(window, cx);
+   }
 }
 
 fn step_indicator(label: &str, status: ModuleStatus) -> impl IntoElement {
@@ -493,11 +561,11 @@ fn action_button(
       .border_color(rgb(if disabled { BORDER } else { BORDER_ACTIVE }))
       .bg(rgb(if disabled { SURFACE } else { SURFACE_ACTIVE }))
       .px_3()
-      .py_2()
+      .py_1p5()
       .flex()
       .items_center()
       .justify_center()
-      .gap_2()
+      .gap_1p5()
       .child(
          div()
             .w(px(6.0))
@@ -521,12 +589,13 @@ fn data_field(label: &str, value: impl Into<String>, active: bool) -> impl IntoE
       .border_color(rgb(if active { BORDER_ACTIVE } else { BORDER }))
       .bg(rgb(if active { SURFACE_ACTIVE } else { BG }))
       .px_3()
-      .py_2()
+      .py_1p5()
       .flex()
       .items_center()
-      .justify_between()
+      .gap_3()
       .child(
          div()
+            .flex_none()
             .font_family(FONT_MONO)
             .text_size(px(9.0))
             .text_color(rgb(TEXT_DIM))
@@ -534,11 +603,13 @@ fn data_field(label: &str, value: impl Into<String>, active: bool) -> impl IntoE
       )
       .child(
          div()
+            .flex_1()
+            .min_w(px(0.0))
             .font_family(FONT_MONO)
             .text_size(px(11.0))
             .text_color(rgb(if active { PHOSPHOR } else { TEXT_DIM }))
-            .overflow_hidden()
-            .text_ellipsis()
+            .text_right()
+            .truncate()
             .child(value.into()),
       )
 }
