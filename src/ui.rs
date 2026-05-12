@@ -54,9 +54,17 @@ impl Render for BeaconApp {
                      .flex_col()
                      .overflow_hidden()
                      .child(self.firmware_panel(cx))
-                     .child(WorkflowConnector::new("connector-1"))
+                     .child(WorkflowConnector::new(
+                        "connector-1",
+                        matches!(device_module_status(self), ModuleStatus::Next),
+                        self.chevron_tick,
+                     ))
                      .child(self.device_panel(cx))
-                     .child(WorkflowConnector::new("connector-2"))
+                     .child(WorkflowConnector::new(
+                        "connector-2",
+                        matches!(upload_module_status(self), ModuleStatus::Next),
+                        self.chevron_tick,
+                     ))
                      .child(self.upload_panel(cx)),
                )
                .child(
@@ -162,7 +170,6 @@ impl BeaconApp {
          .child(action_button(
             "LOAD HEX",
             self.is_busy(),
-            firmware_module_status(self),
             cx.listener(Self::choose_hex),
          ))
    }
@@ -189,7 +196,6 @@ impl BeaconApp {
          .child(action_button(
             "SCAN USB",
             self.is_busy(),
-            device_module_status(self),
             cx.listener(Self::scan_devices),
          ));
 
@@ -249,7 +255,6 @@ impl BeaconApp {
       .child(action_button(
          "EXECUTE UPLOAD",
          !can_upload,
-         upload_module_status(self),
          cx.listener(Self::upload),
       ))
    }
@@ -389,15 +394,21 @@ fn module_status_color(status: ModuleStatus) -> u32 {
 }
 
 struct WorkflowConnector {
-   id: ElementId,
+   id:          ElementId,
+   anim_active: bool,
+   tick:        u32,
 }
 
 impl WorkflowConnector {
-   fn new(id: impl Into<ElementId>) -> Self {
-      Self { id: id.into() }
+   fn new(id: impl Into<ElementId>, anim_active: bool, tick: u32) -> Self {
+      Self {
+         id: id.into(),
+         anim_active,
+         tick,
+      }
    }
 
-   fn build_inner(caret_count: usize) -> AnyElement {
+   fn build_inner(caret_count: usize, highlighted: Option<usize>) -> AnyElement {
       div()
          .flex_1()
          .min_h(px(56.0))
@@ -412,7 +423,11 @@ impl WorkflowConnector {
                .items_center()
                .justify_center()
                .child(div().flex().flex_col().items_center().gap_0().children(
-                  (0..caret_count).map(|_| {
+                  (0..caret_count).map(move |i| {
+                     let color = match highlighted {
+                        Some(h) if h == i => ALERT,
+                        _ => PHOSPHOR_DARK,
+                     };
                      div()
                         .h(px(WORKFLOW_CONNECTOR_CARET_SLOT))
                         .flex()
@@ -423,7 +438,7 @@ impl WorkflowConnector {
                               .path("icons/caret-down.svg")
                               .w(px(WORKFLOW_CONNECTOR_CARET_WIDTH))
                               .h(px(WORKFLOW_CONNECTOR_CARET_HEIGHT))
-                              .text_color(rgb(PHOSPHOR_DARK)),
+                              .text_color(rgb(color)),
                         )
                   }),
                )),
@@ -470,7 +485,13 @@ impl Element for WorkflowConnector {
             (count, height)
          });
 
-      let mut element = Self::build_inner(caret_count);
+      let highlighted = if self.anim_active {
+         Some(self.tick as usize % caret_count)
+      } else {
+         None
+      };
+
+      let mut element = Self::build_inner(caret_count, highlighted);
       let layout_id = element.request_layout(window, cx);
       (layout_id, element)
    }
@@ -541,7 +562,6 @@ fn status_dot(status: ModuleStatus) -> impl IntoElement {
 fn action_button(
    label: &'static str,
    disabled: bool,
-   status: ModuleStatus,
    listener: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
    div()
@@ -555,14 +575,6 @@ fn action_button(
       .flex()
       .items_center()
       .justify_center()
-      .gap_1p5()
-      .child(
-         div()
-            .my_auto()
-            .w(px(6.0))
-            .h(px(6.0))
-            .bg(rgb(module_status_color(status))),
-      )
       .child(
          div()
             .text_size(px(11.0))

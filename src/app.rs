@@ -26,7 +26,10 @@ pub struct BeaconApp {
    pub tycmd:                 Option<Tycmd>,
    pub expected_tycmd_path:   PathBuf,
    pub blink_visible:         bool,
+   pub chevron_tick:          u32,
+   chevron_anim_phase:        u8,
    blink_task:                Option<Task<()>>,
+   _chevron_anim_task:        Task<()>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -55,8 +58,32 @@ pub enum AppErrorKind {
 }
 
 impl BeaconApp {
-   pub fn new(_cx: &mut Context<Self>) -> Self {
+   pub fn new(cx: &mut Context<Self>) -> Self {
       let expected_tycmd_path = tycmd::expected_resource_path();
+
+      let chevron_anim_task = cx.spawn(
+         async move |this: WeakEntity<BeaconApp>, cx: &mut AsyncApp| {
+            loop {
+               cx.background_executor()
+                  .timer(std::time::Duration::from_millis(110))
+                  .await;
+
+               let ok = this
+                  .update(cx, |this, cx| {
+                     if this.current_chevron_phase() != 0 {
+                        this.chevron_tick = this.chevron_tick.wrapping_add(1);
+                        cx.notify();
+                     }
+                  })
+                  .is_ok();
+
+               if !ok {
+                  break;
+               }
+            }
+         },
+      );
+
       let mut app = Self {
          selected_hex:          None,
          devices:               Vec::new(),
@@ -68,7 +95,10 @@ impl BeaconApp {
          tycmd:                 None,
          expected_tycmd_path:   expected_tycmd_path.clone(),
          blink_visible:         true,
+         chevron_tick:          0,
+         chevron_anim_phase:    0,
          blink_task:            None,
+         _chevron_anim_task:    chevron_anim_task,
       };
 
       match Tycmd::resolve() {
@@ -133,6 +163,7 @@ impl BeaconApp {
                   },
                }
 
+               this.sync_chevron_phase();
                cx.notify();
             });
          },
@@ -163,6 +194,7 @@ impl BeaconApp {
       self.selected_device_index = Some(index);
       self.log(format!("selected device: {}", self.devices[index].label));
       self.refresh_ready_status();
+      self.sync_chevron_phase();
       cx.notify();
    }
 
@@ -278,6 +310,24 @@ impl BeaconApp {
       )
    }
 
+   pub fn current_chevron_phase(&self) -> u8 {
+      if self.can_upload() || matches!(self.status, AppStatus::Uploading) {
+         2
+      } else if self.selected_hex.is_some() && self.selected_device_index.is_none() {
+         1
+      } else {
+         0
+      }
+   }
+
+   pub fn sync_chevron_phase(&mut self) {
+      let phase = self.current_chevron_phase();
+      if phase != self.chevron_anim_phase {
+         self.chevron_tick = 0;
+         self.chevron_anim_phase = phase;
+      }
+   }
+
    pub fn can_upload(&self) -> bool {
       self.tycmd.is_some()
          && self.selected_hex.is_some()
@@ -322,6 +372,7 @@ impl BeaconApp {
                   },
                }
 
+               this.sync_chevron_phase();
                cx.notify();
             });
          },
@@ -399,6 +450,7 @@ impl BeaconApp {
                }
 
                this.active_task = None;
+               this.sync_chevron_phase();
                cx.notify();
             });
          },
