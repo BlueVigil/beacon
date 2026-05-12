@@ -1,9 +1,7 @@
 set dotenv-load
 
-export RUSTC := "rustc"
-
-cargo := "cargo"
-nightly-cargo := "rustup run nightly cargo"
+cargo := "rustup run nightly cargo"
+rustc := `rustup which --toolchain nightly rustc`
 
 default:
     @just --list
@@ -12,22 +10,25 @@ help:
     @just --list
 
 format:
-    {{nightly-cargo}} fmt --all
+    {{cargo}} fmt --all
 
 format-check:
-    {{nightly-cargo}} fmt --all -- --check
+    {{cargo}} fmt --all -- --check
 
 lint:
-    {{cargo}} clippy --all-targets --all-features -- -D warnings
+    RUSTC={{rustc}} {{cargo}} clippy --all-targets --all-features -- -D warnings
 
 compile:
-    {{cargo}} check
+    RUSTC={{rustc}} {{cargo}} check
 
 clean:
     {{cargo}} clean
 
+clean-toolchain:
+    {{cargo}} clean
+
 build:
-    {{cargo}} build
+    RUSTC={{rustc}} {{cargo}} build
 
 run:
-    {{cargo}} run
+    RUSTC={{rustc}} {{cargo}} run
