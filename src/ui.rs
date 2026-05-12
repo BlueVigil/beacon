@@ -335,7 +335,7 @@ fn panel(
                div()
                   .font_family(FONT_MONO)
                   .text_size(px(9.0))
-                  .text_color(rgb(TEXT_DIM))
+                  .text_color(rgb(GRAY))
                   .child(index),
             )
             .child(
@@ -601,7 +601,7 @@ fn data_field(label: &str, value: impl Into<String>, active: bool) -> impl IntoE
             .flex_none()
             .font_family(FONT_MONO)
             .text_size(px(9.0))
-            .text_color(rgb(TEXT_DIM))
+            .text_color(rgb(GRAY))
             .child(label.to_string()),
       )
       .child(
@@ -632,7 +632,7 @@ fn data_block(value: impl Into<String>, active: bool) -> impl IntoElement {
             .flex_none()
             .font_family(FONT_MONO)
             .text_size(px(9.0))
-            .text_color(rgb(TEXT_DIM))
+            .text_color(rgb(GRAY))
             .pt(px(1.0))
             .child("HEX"),
       )
@@ -691,16 +691,8 @@ fn active_log_color(line: &str) -> gpui::Rgba {
    }
 }
 
-fn stale_log_color(line: &str) -> gpui::Rgba {
-   if line.starts_with("ERR") {
-      rgb(ACCENT_35)
-   } else if line.starts_with("OK") {
-      rgb(DONE_DIM)
-   } else if line.starts_with('$') {
-      rgb(TEXT_DIM)
-   } else {
-      rgb(ACCENT_20)
-   }
+fn stale_log_color(_line: &str) -> gpui::Rgba {
+   rgb(GRAY)
 }
 
 fn device_status(app: &BeaconApp) -> String {
