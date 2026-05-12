@@ -596,15 +596,33 @@ fn data_field(label: &str, value: impl Into<String>, active: bool) -> impl IntoE
 
 fn data_block(value: impl Into<String>, active: bool) -> impl IntoElement {
    div()
-      .min_h(px(54.0))
       .border_1()
       .border_color(rgb(if active { BORDER_ACTIVE } else { BORDER }))
       .bg(rgb(if active { SURFACE_ACTIVE } else { BG }))
-      .p_3()
-      .font_family(FONT_MONO)
-      .text_size(px(10.0))
-      .text_color(rgb(if active { PHOSPHOR } else { TEXT_DIM }))
-      .child(value.into())
+      .px_3()
+      .py_1p5()
+      .flex()
+      .items_start()
+      .gap_3()
+      .child(
+         div()
+            .flex_none()
+            .font_family(FONT_MONO)
+            .text_size(px(9.0))
+            .text_color(rgb(TEXT_DIM))
+            .pt(px(1.0))
+            .child("HEX"),
+      )
+      .child(
+         div()
+            .flex_1()
+            .min_w(px(0.0))
+            .font_family(FONT_MONO)
+            .text_size(px(11.0))
+            .text_color(rgb(if active { PHOSPHOR } else { TEXT_DIM }))
+            .text_right()
+            .child(value.into()),
+      )
 }
 
 fn output_lines_for_display(lines: &[String]) -> Vec<OutputLineDisplay> {
