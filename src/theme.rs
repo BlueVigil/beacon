@@ -1,20 +1,26 @@
-pub const BG: u32 = 0x0C0B07;
-pub const SURFACE: u32 = 0x111008;
-pub const SURFACE_ACTIVE: u32 = 0x1A180A;
+pub const BG: u32 = 0x222222;
 
-pub const PHOSPHOR: u32 = 0xC87828;
-pub const PHOSPHOR_DIM: u32 = 0x5C3A14;
-pub const PHOSPHOR_DARK: u32 = 0x1E1408;
+pub const ACCENT: u32 = 0xFFA234;
+pub const ACCENT_50: u32 = 0x90622B;
+pub const ACCENT_35: u32 = 0x6F4E28;
+pub const ACCENT_20: u32 = 0x4E3B25;
 
-pub const DONE: u32 = 0x8A8A7A;
-pub const DONE_DIM: u32 = 0x3A3A30;
+pub const SURFACE: u32 = BG;
+pub const SURFACE_ACTIVE: u32 = BG;
 
-pub const AMBER: u32 = 0xFF8C1A;
+pub const PHOSPHOR: u32 = ACCENT;
+pub const PHOSPHOR_DIM: u32 = ACCENT_50;
+pub const PHOSPHOR_DARK: u32 = ACCENT_20;
 
-pub const ALERT: u32 = 0xFF3214;
+pub const AMBER: u32 = ACCENT;
 
-pub const TEXT: u32 = 0xB88A28;
-pub const TEXT_DIM: u32 = 0x5A4218;
+pub const TEXT: u32 = ACCENT;
+pub const TEXT_DIM: u32 = ACCENT_50;
 
-pub const BORDER: u32 = 0x2E2210;
-pub const BORDER_ACTIVE: u32 = 0x4A3818;
+pub const DONE: u32 = ACCENT;
+pub const DONE_DIM: u32 = ACCENT_35;
+
+pub const ALERT: u32 = ACCENT;
+
+pub const BORDER: u32 = ACCENT_20;
+pub const BORDER_ACTIVE: u32 = ACCENT_50;

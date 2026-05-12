@@ -525,7 +525,7 @@ impl Element for WorkflowConnector {
 }
 
 fn step_indicator(label: &str, status: ModuleStatus) -> impl IntoElement {
-   let done = matches!(status, ModuleStatus::Done);
+   let active = matches!(status, ModuleStatus::Done | ModuleStatus::Next);
 
    div()
       .flex()
@@ -536,7 +536,7 @@ fn step_indicator(label: &str, status: ModuleStatus) -> impl IntoElement {
          div()
             .font_family(FONT_MONO)
             .text_size(px(9.0))
-            .text_color(rgb(if done { TEXT } else { TEXT_DIM }))
+            .text_color(rgb(if active { TEXT } else { TEXT_DIM }))
             .pt(px(2.0))
             .child(label.to_string()),
       )
@@ -693,13 +693,13 @@ fn active_log_color(line: &str) -> gpui::Rgba {
 
 fn stale_log_color(line: &str) -> gpui::Rgba {
    if line.starts_with("ERR") {
-      rgb(0x7A3A1A)
+      rgb(ACCENT_35)
    } else if line.starts_with("OK") {
       rgb(DONE_DIM)
    } else if line.starts_with('$') {
       rgb(TEXT_DIM)
    } else {
-      rgb(0x2E2410)
+      rgb(ACCENT_20)
    }
 }
 
