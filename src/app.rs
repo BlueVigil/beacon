@@ -25,6 +25,8 @@ pub struct BeaconApp {
    pub active_task:           Option<Task<()>>,
    pub tycmd:                 Option<Tycmd>,
    pub expected_tycmd_path:   PathBuf,
+   pub blink_visible:         bool,
+   blink_task:                Option<Task<()>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -65,6 +67,8 @@ impl BeaconApp {
          active_task:           None,
          tycmd:                 None,
          expected_tycmd_path:   expected_tycmd_path.clone(),
+         blink_visible:         true,
+         blink_task:            None,
       };
 
       match Tycmd::resolve() {
@@ -197,8 +201,45 @@ impl BeaconApp {
       }
 
       self.status = AppStatus::Uploading;
+      self.blink_visible = true;
       self.log_command(format!("tycmd upload {}", hex_path.display()));
       cx.notify();
+
+      let blink_task = cx.spawn(
+         async move |this: WeakEntity<BeaconApp>, cx: &mut AsyncApp| {
+            'outer: loop {
+               for _ in 0..10u8 {
+                  for visible in [true, false] {
+                     let still_uploading = this
+                        .update(cx, |this, cx| {
+                           if matches!(this.status, AppStatus::Uploading) {
+                              this.blink_visible = visible;
+                              cx.notify();
+                              true
+                           } else {
+                              false
+                           }
+                        })
+                        .unwrap_or(false);
+
+                     if !still_uploading {
+                        break 'outer;
+                     }
+
+                     cx.background_executor()
+                        .timer(std::time::Duration::from_millis(60))
+                        .await;
+                  }
+               }
+
+               cx.background_executor()
+                  .timer(std::time::Duration::from_millis(800))
+                  .await;
+            }
+         },
+      );
+
+      self.blink_task = Some(blink_task);
 
       let task = cx.spawn(
          async move |this: WeakEntity<BeaconApp>, cx: &mut AsyncApp| {
@@ -217,6 +258,8 @@ impl BeaconApp {
                }
 
                this.active_task = None;
+               this.blink_task = None;
+               this.blink_visible = true;
                cx.notify();
             });
          },

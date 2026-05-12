@@ -156,7 +156,7 @@ impl BeaconApp {
             }
          });
 
-      panel("[01]", "FIRMWARE", firmware_module_status(self))
+      panel("[01]", "FIRMWARE", firmware_module_status(self), true)
          .flex_none()
          .child(data_block(identify, self.selected_hex.is_some()))
          .child(action_button(
@@ -174,7 +174,7 @@ impl BeaconApp {
          .map(|d| d.label.as_str())
          .unwrap_or("NO TEENSY");
 
-      let mut p = panel("[02]", "DEVICE", device_module_status(self))
+      let mut p = panel("[02]", "DEVICE", device_module_status(self), true)
          .flex_none()
          .child(data_field(
             "STATUS",
@@ -238,21 +238,26 @@ impl BeaconApp {
 
    fn upload_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
       let can_upload = self.can_upload();
-      panel("[03]", "UPLOAD", upload_module_status(self))
-         .flex_none()
-         .child(data_field("STATUS", upload_status(self), can_upload))
-         .child(action_button(
-            "EXECUTE UPLOAD",
-            !can_upload,
-            upload_module_status(self),
-            cx.listener(Self::upload),
-         ))
+      panel(
+         "[03]",
+         "UPLOAD",
+         upload_module_status(self),
+         self.blink_visible,
+      )
+      .flex_none()
+      .child(data_field("STATUS", upload_status(self), can_upload))
+      .child(action_button(
+         "EXECUTE UPLOAD",
+         !can_upload,
+         upload_module_status(self),
+         cx.listener(Self::upload),
+      ))
    }
 
    fn output_panel(&self) -> impl IntoElement {
       let lines = output_lines_for_display(&self.output_lines);
 
-      panel("[04]", "OUTPUT", output_module_status(self))
+      panel("[04]", "OUTPUT", output_module_status(self), true)
          .flex_1()
          .min_h(px(0.0))
          .child(
@@ -294,7 +299,12 @@ impl BeaconApp {
    }
 }
 
-fn panel(index: &'static str, title: &'static str, status: ModuleStatus) -> gpui::Div {
+fn panel(
+   index: &'static str,
+   title: &'static str,
+   status: ModuleStatus,
+   dot_visible: bool,
+) -> gpui::Div {
    div()
       .border_1()
       .border_color(rgb(BORDER))
@@ -313,7 +323,8 @@ fn panel(index: &'static str, title: &'static str, status: ModuleStatus) -> gpui
                div()
                   .w(px(6.0))
                   .h(px(6.0))
-                  .bg(rgb(module_status_color(status))),
+                  .bg(rgb(module_status_color(status)))
+                  .opacity(if dot_visible { 1.0 } else { 0.0 }),
             )
             .child(
                div()
@@ -354,7 +365,7 @@ fn device_module_status(app: &BeaconApp) -> ModuleStatus {
 fn upload_module_status(app: &BeaconApp) -> ModuleStatus {
    if matches!(app.status, AppStatus::Success) {
       ModuleStatus::Done
-   } else if app.can_upload() {
+   } else if app.can_upload() || matches!(app.status, AppStatus::Uploading) {
       ModuleStatus::Next
    } else {
       ModuleStatus::Pending
