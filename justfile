@@ -1,8 +1,8 @@
 set dotenv-load
 
-export RUSTC := "/Users/uzair/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc"
+export RUSTC := "rustc"
 
-cargo := "/Users/uzair/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo"
+cargo := "cargo"
 nightly-cargo := "rustup run nightly cargo"
 
 default:
