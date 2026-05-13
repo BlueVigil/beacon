@@ -1,1 +1,1 @@
-gpui::actions!(beacon, [LoadHex, ScanUsb, Upload, CycleAutoMode]);
+gpui::actions!(beacon, [LoadHex, ScanUsb, Upload, CycleAutoMode, Quit]);

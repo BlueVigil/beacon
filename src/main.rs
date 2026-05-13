@@ -20,7 +20,10 @@ use gpui::{
    Bounds,
    Focusable,
    KeyBinding,
+   Menu,
+   MenuItem,
    SharedString,
+   SystemMenuType,
    TitlebarOptions,
    WindowBounds,
    WindowDecorations,
@@ -59,15 +62,35 @@ impl AssetSource for Assets {
 
 fn main() {
    Application::new()
-      .with_assets(Assets {
-         base: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets"),
-      })
+      .with_assets(Assets { base: asset_root() })
       .run(|cx: &mut App| {
          cx.bind_keys([
             KeyBinding::new("cmd-o", actions::LoadHex, Some("Beacon")),
             KeyBinding::new("cmd-shift-r", actions::ScanUsb, Some("Beacon")),
             KeyBinding::new("cmd-u", actions::Upload, Some("Beacon")),
             KeyBinding::new("cmd-r", actions::CycleAutoMode, Some("Beacon")),
+            KeyBinding::new("cmd-w", actions::Quit, Some("Beacon")),
+            KeyBinding::new("cmd-q", actions::Quit, Some("Beacon")),
+         ]);
+         cx.set_menus(vec![
+            Menu {
+               name:  "Beacon".into(),
+               items: vec![
+                  MenuItem::os_submenu("Services", SystemMenuType::Services),
+                  MenuItem::separator(),
+                  MenuItem::action("Quit Beacon", actions::Quit),
+               ],
+            },
+            Menu {
+               name:  "Actions".into(),
+               items: vec![
+                  MenuItem::action("Load Hex", actions::LoadHex),
+                  MenuItem::action("Scan USB", actions::ScanUsb),
+                  MenuItem::separator(),
+                  MenuItem::action("Upload", actions::Upload),
+                  MenuItem::action("Cycle Auto Mode", actions::CycleAutoMode),
+               ],
+            },
          ]);
 
          let bounds = Bounds::centered(None, size(px(1080.0), px(900.0)), cx);
@@ -92,4 +115,26 @@ fn main() {
          )
          .unwrap();
       });
+}
+
+fn asset_root() -> PathBuf {
+   packaged_resource_root()
+      .map(|root| root.join("assets"))
+      .filter(|path| path.exists())
+      .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets"))
+}
+
+fn packaged_resource_root() -> Option<PathBuf> {
+   let executable = std::env::current_exe().ok()?;
+
+   for ancestor in executable.ancestors() {
+      if ancestor
+         .extension()
+         .is_some_and(|extension| extension == "app")
+      {
+         return Some(ancestor.join("Contents").join("Resources"));
+      }
+   }
+
+   executable.parent().map(|app_dir| app_dir.join("resources"))
 }

@@ -18,6 +18,7 @@ PLAN*.md
 
 # SOURCE
 !src/
+!assets/
 !resources/
 
 # RS

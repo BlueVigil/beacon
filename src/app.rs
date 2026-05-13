@@ -251,6 +251,15 @@ impl BeaconApp {
       self.cycle_auto(cx);
    }
 
+   pub fn quit_action(
+      &mut self,
+      _action: &actions::Quit,
+      _window: &mut gpui::Window,
+      cx: &mut Context<Self>,
+   ) {
+      cx.quit();
+   }
+
    fn cycle_auto(&mut self, cx: &mut Context<Self>) {
       if self.is_busy() {
          return;

@@ -47,6 +47,7 @@ impl Render for BeaconApp {
          .on_action(cx.listener(Self::scan_usb_action))
          .on_action(cx.listener(Self::upload_action))
          .on_action(cx.listener(Self::cycle_auto_mode_action))
+         .on_action(cx.listener(Self::quit_action))
          .child(self.title_bar())
          .child(
             div()
