@@ -33,7 +33,7 @@ linker = "x86_64-linux-gnu-gcc"
 [target.aarch64-unknown-linux-gnu]
 linker = "aarch64-linux-gnu-gcc"
 
-# Windows (x86_64) — requires llvm or mingw when building from macOS/Linux
+# Windows (x86_64) - requires llvm or mingw when building from macOS/Linux
 [target.x86_64-pc-windows-msvc]
 # Uses MSVC linker; typically built on Windows or with llvm/lld cross toolchain.
 

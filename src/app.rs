@@ -239,7 +239,7 @@ impl BeaconApp {
 
       match self.auto_mode {
          AutoMode::Wait => {
-            if self.can_upload() {
+            if self.selected_hex.is_some() && !self.devices.is_empty() && !self.is_busy() {
                self.log("auto-wait: device present, uploading...");
                self.start_auto_wait(cx);
             } else if self.selected_hex.is_some() {
@@ -449,19 +449,20 @@ impl BeaconApp {
                   Ok(output) => {
                      this.append_command_output(&output);
                      if output.is_success() {
+                        this.status = AppStatus::Success;
                         this.log_success("auto-wait: upload succeeded");
                      } else {
+                        this.status = AppStatus::Error(AppErrorKind::CommandFailed {
+                           command:   "tycmd upload --wait".to_string(),
+                           exit_code: output.status_code,
+                        });
                         this.log_error(command_failure_line("tycmd upload --wait", &output));
                      }
                   },
                   Err(error) => {
+                     this.status = AppStatus::Error(AppErrorKind::Io(error.to_string()));
                      this.log_error(format!("auto-wait: {error}"));
                   },
-               }
-
-               if this.auto_mode == AutoMode::Wait && !this.devices.is_empty() {
-                  this.start_auto_wait(cx);
-                  return;
                }
 
                if this.auto_mode == AutoMode::Wait {
@@ -471,6 +472,8 @@ impl BeaconApp {
                this.active_task = None;
                this.blink_task = None;
                this.blink_visible = true;
+               this.upload_triggered_by_auto = false;
+               this.sync_chevron_phase();
                cx.notify();
             });
          },
@@ -499,69 +502,75 @@ impl BeaconApp {
                   })
                   .await;
 
-               let _ = this.update(cx, |this, cx| {
-                  let Ok(output) = result else {
-                     return;
-                  };
+               if this
+                  .update(cx, |this, cx| {
+                     let Ok(output) = result else {
+                        return;
+                     };
 
-                  if !output.is_success() {
-                     return;
-                  }
+                     if !output.is_success() {
+                        return;
+                     }
 
-                  let devices = tycmd::parse_devices(&output.stdout);
-                  let old_lines: Vec<String> =
-                     this.devices.iter().map(|d| d.raw_line.clone()).collect();
-                  let new_lines: Vec<String> = devices.iter().map(|d| d.raw_line.clone()).collect();
+                     let devices = tycmd::parse_devices(&output.stdout);
+                     let old_lines: Vec<String> =
+                        this.devices.iter().map(|d| d.raw_line.clone()).collect();
+                     let new_lines: Vec<String> =
+                        devices.iter().map(|d| d.raw_line.clone()).collect();
 
-                  if old_lines == new_lines {
-                     return;
-                  }
+                     if old_lines == new_lines {
+                        return;
+                     }
 
-                  let old_count = this.devices.len();
-                  this.devices = devices;
+                     let old_count = this.devices.len();
+                     this.devices = devices;
 
-                  if this.devices.len() > old_count {
-                     this.log(format!(
-                        "auto-scan: {} device(s) detected",
-                        this.devices.len()
-                     ));
-                  }
+                     if this.devices.len() > old_count {
+                        this.log(format!(
+                           "auto-scan: {} device(s) detected",
+                           this.devices.len()
+                        ));
+                     }
 
-                  if this.devices.len() == 1 && this.selected_device_index.is_none() {
-                     this.selected_device_index = Some(0);
-                  }
+                     if this.devices.len() == 1 && this.selected_device_index.is_none() {
+                        this.selected_device_index = Some(0);
+                     }
 
-                  if let Some(idx) = this.selected_device_index
-                     && idx >= this.devices.len()
-                  {
-                     this.selected_device_index = None;
-                  }
+                     if let Some(idx) = this.selected_device_index
+                        && idx >= this.devices.len()
+                     {
+                        this.selected_device_index = None;
+                     }
 
-                  this.refresh_ready_status();
+                     this.refresh_ready_status();
 
-                  if this.auto_mode == AutoMode::Instant
-                     && !this.devices.is_empty()
-                     && this.selected_hex.is_some()
-                     && !this.is_busy()
-                  {
-                     this.log("auto-instant: device detected, uploading...");
-                     this.upload_triggered_by_auto = true;
-                     this.do_upload(cx);
-                  }
+                     if this.auto_mode == AutoMode::Instant
+                        && !this.devices.is_empty()
+                        && this.selected_hex.is_some()
+                        && !this.is_busy()
+                     {
+                        this.log("auto-instant: device detected, uploading...");
+                        this.upload_triggered_by_auto = true;
+                        this.do_upload(cx);
+                     }
 
-                  if this.auto_mode == AutoMode::Wait
-                     && !this.devices.is_empty()
-                     && this.selected_hex.is_some()
-                     && !this.is_busy()
-                     && this.active_task.is_none()
-                  {
-                     this.log("auto-wait: device detected, starting upload...");
-                     this.start_auto_wait(cx);
-                  }
+                     if this.auto_mode == AutoMode::Wait
+                        && !this.devices.is_empty()
+                        && this.selected_hex.is_some()
+                        && !this.is_busy()
+                        && this.active_task.is_none()
+                     {
+                        this.log("auto-wait: device detected, starting upload...");
+                        this.start_auto_wait(cx);
+                     }
 
-                  this.sync_chevron_phase();
-                  cx.notify();
-               });
+                     this.sync_chevron_phase();
+                     cx.notify();
+                  })
+                  .is_err()
+               {
+                  break;
+               }
             }
          },
       );

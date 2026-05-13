@@ -246,7 +246,7 @@ impl BeaconApp {
    fn upload_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
       let can_upload = self.can_upload();
       let can_auto = self.tycmd.is_some() && self.selected_hex.is_some();
-      let auto_disabled = self.auto_mode == AutoMode::Off && !can_auto;
+      let auto_disabled = self.is_busy() || (self.auto_mode == AutoMode::Off && !can_auto);
       panel(
          "[03]",
          "UPLOAD",
