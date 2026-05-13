@@ -1,4 +1,5 @@
 use gpui::{
+   Action,
    AnyElement,
    App,
    Bounds,
@@ -23,6 +24,7 @@ use gpui::{
 };
 
 use crate::{
+   actions,
    app::{
       AppErrorKind,
       AppStatus,
@@ -158,7 +160,7 @@ impl BeaconApp {
          )
    }
 
-   fn firmware_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
+   fn firmware_panel(&self, _cx: &mut Context<Self>) -> impl IntoElement {
       let identify = self
          .identify_output
          .as_ref()
@@ -174,11 +176,7 @@ impl BeaconApp {
       panel("[01]", "FIRMWARE", firmware_module_status(self), true)
          .flex_none()
          .child(data_block(identify, self.selected_hex.is_some()))
-         .child(action_button(
-            "LOAD HEX",
-            self.is_busy(),
-            cx.listener(Self::choose_hex),
-         ))
+         .child(action_button("LOAD HEX", self.is_busy(), actions::LoadHex))
    }
 
    fn device_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -200,11 +198,7 @@ impl BeaconApp {
             selected,
             self.selected_device_index.is_some(),
          ))
-         .child(action_button(
-            "SCAN USB",
-            self.is_busy(),
-            cx.listener(Self::scan_devices),
-         ));
+         .child(action_button("SCAN USB", self.is_busy(), actions::ScanUsb));
 
       if self.devices.len() > 1 {
          let rows = self.devices.iter().enumerate().map(|(index, device)| {
@@ -249,7 +243,7 @@ impl BeaconApp {
       p
    }
 
-   fn upload_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
+   fn upload_panel(&self, _cx: &mut Context<Self>) -> impl IntoElement {
       let can_upload = self.can_upload();
       let can_auto = self.tycmd.is_some() && self.selected_hex.is_some();
       let auto_disabled = self.is_busy() || (self.auto_mode == AutoMode::Off && !can_auto);
@@ -277,11 +271,11 @@ impl BeaconApp {
                      AutoMode::Off => "AUTO: OFF",
                   },
                   auto_disabled,
-                  cx.listener(Self::cycle_auto_mode),
+                  actions::CycleAutoMode,
                )
                .flex_1(),
             )
-            .child(action_button("UPLOAD", !can_upload, cx.listener(Self::upload)).flex_1()),
+            .child(action_button("UPLOAD", !can_upload, actions::Upload).flex_1()),
       )
    }
 
@@ -591,7 +585,7 @@ fn status_dot(status: ModuleStatus) -> impl IntoElement {
 fn action_button(
    label: &'static str,
    disabled: bool,
-   listener: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
+   action: impl Action + Clone + 'static,
 ) -> impl Styled + IntoElement {
    div()
       .id(SharedString::from(format!("btn-{label}")))
@@ -612,7 +606,11 @@ fn action_button(
             .font_weight(FontWeight::SEMIBOLD)
             .child(label),
       )
-      .when(!disabled, |btn| btn.on_click(listener))
+      .when(!disabled, |btn| {
+         btn.on_click(move |_event, window, cx| {
+            window.dispatch_action(Box::new(action.clone()), cx);
+         })
+      })
 }
 
 fn data_field(label: &str, value: impl Into<String>, active: bool) -> impl IntoElement {

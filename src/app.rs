@@ -136,15 +136,6 @@ impl BeaconApp {
       app
    }
 
-   pub fn choose_hex(
-      &mut self,
-      _event: &gpui::ClickEvent,
-      _window: &mut gpui::Window,
-      cx: &mut Context<Self>,
-   ) {
-      self.load_hex(cx);
-   }
-
    pub fn load_hex_action(
       &mut self,
       _action: &actions::LoadHex,
@@ -206,15 +197,6 @@ impl BeaconApp {
       self.active_task = Some(task);
    }
 
-   pub fn scan_devices(
-      &mut self,
-      _event: &gpui::ClickEvent,
-      _window: &mut gpui::Window,
-      cx: &mut Context<Self>,
-   ) {
-      self.start_scan(cx);
-   }
-
    pub fn scan_usb_action(
       &mut self,
       _action: &actions::ScanUsb,
@@ -241,15 +223,6 @@ impl BeaconApp {
       cx.notify();
    }
 
-   pub fn upload(
-      &mut self,
-      _event: &gpui::ClickEvent,
-      _window: &mut gpui::Window,
-      cx: &mut Context<Self>,
-   ) {
-      self.upload_selected(cx);
-   }
-
    pub fn upload_action(
       &mut self,
       _action: &actions::Upload,
@@ -263,15 +236,6 @@ impl BeaconApp {
       if !self.is_busy() {
          self.do_upload(cx);
       }
-   }
-
-   pub fn cycle_auto_mode(
-      &mut self,
-      _event: &gpui::ClickEvent,
-      _window: &mut gpui::Window,
-      cx: &mut Context<Self>,
-   ) {
-      self.cycle_auto(cx);
    }
 
    pub fn cycle_auto_mode_action(
