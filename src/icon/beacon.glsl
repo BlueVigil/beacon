@@ -51,7 +51,7 @@ float starSuccessor(vec3 p) {
    float closestSpokeAngle = spokeIndex * spokeSpacing;
 
    float size = 0.84;
-   float give = 0.77;
+   float give = 0.38;
    vec3 pos = vec3(0.0, 1.5, 0.0);
 
    float a = abs(closestSpokeAngle);
@@ -63,7 +63,7 @@ float starSuccessor(vec3 p) {
    } else if (abs(a - PI / 2.0) < 0.01) {
       pos = vec3(0.0, 1.5, 0.0);
       size = 0.4;
-      give = 0.55;
+      give = 0.18;
       rayLength = 2.4;
    } else if (abs(a - PI / 4.0) < 0.01 || abs(a - 3.0 * PI / 4.0) < 0.01) {
       pos = vec3(0.0, 1.7, 0.0);
@@ -77,26 +77,25 @@ float starSuccessor(vec3 p) {
 
    vec3 torusPos = spokePt - pos;
    torusPos.xy *= Rot(PI / 2.0);
-   float torus = sdDiamondTorus(torusPos, size, 0.02);
+   float torus = sdDiamondTorus(torusPos, size, 0.032);
 
    return smin(rays, torus, give);
 }
 
 float dial(vec3 p) {
    p.xy *= Rot(PI / 2.0);
-   float minDist = 1e18;
-   minDist = min(minDist, sdDiamondTorus(p, 1.0, 0.05));
-   minDist = min(minDist, sdDiamondTorus(p, 1.5, 0.02));
-   minDist = min(minDist, sdDiamondTorus(p, 1.9, 0.012));
-   return minDist;
+   float d = sdDiamondTorus(p, 1.0, 0.05);
+   d = smin(d, sdDiamondTorus(p, 1.5, 0.02), 0.04);
+   d = smin(d, sdDiamondTorus(p, 1.9, 0.012), 0.03);
+   return d;
 }
 
 float Form(vec3 p) {
    float dialDist = dial(p);
    float starDist = starSuccessor(p);
-   float form = smin(dialDist, starDist, 0.3);
-   
-   return smax(form, -(length(p) - 0.5), 1.0); 
+   float form = smin(dialDist, starDist, 0.22);
+   float hub = length(p) - 0.22;
+   return smin(form, hub, 0.14);
 }
 
 vec3 normalAt(vec3 p) {
