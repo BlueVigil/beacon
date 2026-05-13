@@ -244,6 +244,7 @@ impl BeaconApp {
 
    fn upload_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
       let can_upload = self.can_upload();
+      let auto_disabled = !self.auto_upload_armed && !can_upload;
       panel(
          "[03]",
          "UPLOAD",
@@ -251,12 +252,29 @@ impl BeaconApp {
          self.blink_visible,
       )
       .flex_none()
-      .child(data_field("STATUS", upload_status(self), can_upload))
-      .child(action_button(
-         "EXECUTE UPLOAD",
-         !can_upload,
-         cx.listener(Self::upload),
+      .child(data_field(
+         "STATUS",
+         upload_status(self),
+         can_upload || self.auto_upload_armed,
       ))
+      .child(
+         div()
+            .flex()
+            .gap_1p5()
+            .child(
+               action_button(
+                  if self.auto_upload_armed {
+                     "AUTO: ON"
+                  } else {
+                     "AUTO: OFF"
+                  },
+                  auto_disabled,
+                  cx.listener(Self::toggle_auto_upload),
+               )
+               .flex_1(),
+            )
+            .child(action_button("UPLOAD", !can_upload, cx.listener(Self::upload)).flex_1()),
+      )
    }
 
    fn output_panel(&self) -> impl IntoElement {
@@ -370,7 +388,8 @@ fn device_module_status(app: &BeaconApp) -> ModuleStatus {
 fn upload_module_status(app: &BeaconApp) -> ModuleStatus {
    if matches!(app.status, AppStatus::Success) {
       ModuleStatus::Done
-   } else if app.can_upload() || matches!(app.status, AppStatus::Uploading) {
+   } else if app.can_upload() || matches!(app.status, AppStatus::Uploading) || app.auto_upload_armed
+   {
       ModuleStatus::Next
    } else {
       ModuleStatus::Pending
@@ -563,7 +582,7 @@ fn action_button(
    label: &'static str,
    disabled: bool,
    listener: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
-) -> impl IntoElement {
+) -> impl Styled + IntoElement {
    div()
       .id(SharedString::from(format!("btn-{label}")))
       .cursor_pointer()
@@ -709,7 +728,9 @@ fn device_status(app: &BeaconApp) -> String {
 }
 
 fn upload_status(app: &BeaconApp) -> &'static str {
-   if app.can_upload() {
+   if app.auto_upload_armed {
+      "AUTO-ARMED"
+   } else if app.can_upload() {
       "ARMED"
    } else if app.tycmd.is_none() {
       "TYCMD MISSING"

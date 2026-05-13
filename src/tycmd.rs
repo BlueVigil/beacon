@@ -84,6 +84,14 @@ impl Tycmd {
       self.run("upload", &[hex])
    }
 
+   pub fn upload_wait(&self, hex_path: &Path) -> Result<CommandOutput> {
+      let hex = hex_path
+         .to_str()
+         .ok_or_else(|| anyhow!("firmware path is not valid UTF-8: {}", hex_path.display()))?;
+
+      self.run("upload", &["--wait", hex])
+   }
+
    fn run(&self, subcommand: &str, args: &[&str]) -> Result<CommandOutput> {
       validate_executable(&self.executable)?;
 
