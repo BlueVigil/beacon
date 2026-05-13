@@ -7,3 +7,6 @@
 # SOURCE
 !**/
 !*.svg
+!*.png
+!*.ico
+!*.icns

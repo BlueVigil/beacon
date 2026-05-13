@@ -75,6 +75,9 @@ if [[ "${platform}" == "macos" ]]; then
   cp "${binary_path}" "${app_dir}/Contents/MacOS/${binary_name}"
   chmod +x "${app_dir}/Contents/MacOS/${binary_name}"
   copy_resources "${app_dir}/Contents/Resources"
+  if [[ -f "assets/icons/Beacon.icns" ]]; then
+    cp "assets/icons/Beacon.icns" "${app_dir}/Contents/Resources/Beacon.icns"
+  fi
   cat > "${app_dir}/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -85,6 +88,8 @@ if [[ "${platform}" == "macos" ]]; then
     <key>CFBundleIdentifier</key>
     <string>dev.beacon.app</string>
     <key>CFBundleName</key>
+    <string>Beacon</string>
+    <key>CFBundleIconFile</key>
     <string>Beacon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
