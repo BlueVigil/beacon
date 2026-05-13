@@ -10,3 +10,5 @@
 !*.png
 !*.ico
 !*.icns
+!*.otf
+!*.ttf

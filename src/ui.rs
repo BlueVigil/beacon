@@ -89,8 +89,8 @@ impl Render for BeaconApp {
    }
 }
 
-const FONT_MONO: &str = "Iosevka Nerd Font Mono";
-const FONT_TITLE: &str = "DIN Condensed";
+const FONT_MONO: &str = "Iosevka NFM";
+const FONT_TITLE: &str = "DepartureMono Nerd Font Mono";
 
 const WORKFLOW_CONNECTOR_MARGIN: f32 = 24.0;
 const WORKFLOW_CONNECTOR_CARET_WIDTH: f32 = 14.0;

@@ -70,7 +70,7 @@ copy_resources() {
 }
 
 if [[ "${platform}" == "macos" ]]; then
-  app_dir="${package_root}/Beacon.app"
+  app_dir="${package_root}/BEACON.app"
   mkdir -p "${app_dir}/Contents/MacOS" "${app_dir}/Contents/Resources"
   cp "${binary_path}" "${app_dir}/Contents/MacOS/${binary_name}"
   chmod +x "${app_dir}/Contents/MacOS/${binary_name}"
@@ -88,7 +88,9 @@ if [[ "${platform}" == "macos" ]]; then
     <key>CFBundleIdentifier</key>
     <string>dev.beacon.app</string>
     <key>CFBundleName</key>
-    <string>Beacon</string>
+    <string>BEACON</string>
+    <key>CFBundleDisplayName</key>
+    <string>BEACON</string>
     <key>CFBundleIconFile</key>
     <string>Beacon</string>
     <key>CFBundlePackageType</key>

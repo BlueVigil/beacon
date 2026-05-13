@@ -7,6 +7,7 @@ mod ui;
 use std::{
    borrow::Cow,
    fs,
+   io,
    path::PathBuf,
 };
 
@@ -92,6 +93,7 @@ fn main() {
                ],
             },
          ]);
+         load_bundled_fonts(cx).unwrap();
 
          let bounds = Bounds::centered(None, size(px(1080.0), px(900.0)), cx);
 
@@ -122,6 +124,45 @@ fn asset_root() -> PathBuf {
       .map(|root| root.join("assets"))
       .filter(|path| path.exists())
       .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets"))
+}
+
+fn load_bundled_fonts(cx: &mut App) -> Result<()> {
+   let fonts_dir = asset_root().join("fonts");
+   let fonts = read_font_files(&fonts_dir)?;
+
+   if !fonts.is_empty() {
+      cx.text_system().add_fonts(fonts)?;
+   }
+
+   Ok(())
+}
+
+fn read_font_files(path: &PathBuf) -> Result<Vec<Cow<'static, [u8]>>> {
+   let entries = match fs::read_dir(path) {
+      Ok(entries) => entries,
+      Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+      Err(error) => return Err(error.into()),
+   };
+
+   let mut fonts = Vec::new();
+
+   for entry in entries {
+      let path = entry?.path();
+      if path.is_dir() {
+         fonts.extend(read_font_files(&path)?);
+         continue;
+      }
+
+      let Some(extension) = path.extension().and_then(|extension| extension.to_str()) else {
+         continue;
+      };
+
+      if matches!(extension.to_ascii_lowercase().as_str(), "otf" | "ttf") {
+         fonts.push(Cow::Owned(fs::read(path)?));
+      }
+   }
+
+   Ok(fonts)
 }
 
 fn packaged_resource_root() -> Option<PathBuf> {
