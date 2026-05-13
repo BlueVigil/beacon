@@ -27,9 +27,10 @@ pub struct BeaconApp {
    pub expected_tycmd_path:   PathBuf,
    pub blink_visible:         bool,
    pub chevron_tick:          u32,
-   pub auto_upload_armed:     bool,
+   pub auto_mode:             AutoMode,
    chevron_anim_phase:        u8,
    blink_task:                Option<Task<()>>,
+   auto_scan_task:            Option<Task<()>>,
    _chevron_anim_task:        Task<()>,
    upload_triggered_by_auto:  bool,
 }
@@ -57,6 +58,13 @@ pub enum AppErrorKind {
       exit_code: Option<i32>,
    },
    Io(String),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AutoMode {
+   Off,
+   Wait,
+   Instant,
 }
 
 impl BeaconApp {
@@ -98,9 +106,10 @@ impl BeaconApp {
          expected_tycmd_path:      expected_tycmd_path.clone(),
          blink_visible:            true,
          chevron_tick:             0,
-         auto_upload_armed:        false,
+         auto_mode:                AutoMode::Off,
          chevron_anim_phase:       0,
          blink_task:               None,
+         auto_scan_task:           None,
          _chevron_anim_task:       chevron_anim_task,
          upload_triggered_by_auto: false,
       };
@@ -109,6 +118,7 @@ impl BeaconApp {
          Ok(tycmd) => {
             app.log(format!("tycmd sidecar: {}", tycmd.executable().display()));
             app.tycmd = Some(tycmd);
+            app.start_auto_scan(cx);
          },
          Err(error) => {
             app.log_error(format!("missing tycmd sidecar: {error}"));
@@ -212,36 +222,60 @@ impl BeaconApp {
          return;
       }
 
-      self.do_upload(cx, false);
+      self.do_upload(cx);
    }
 
-   pub fn toggle_auto_upload(
+   pub fn cycle_auto_mode(
       &mut self,
       _event: &gpui::ClickEvent,
       _window: &mut gpui::Window,
       cx: &mut Context<Self>,
    ) {
-      self.auto_upload_armed = !self.auto_upload_armed;
+      self.auto_mode = match self.auto_mode {
+         AutoMode::Off => AutoMode::Wait,
+         AutoMode::Wait => AutoMode::Instant,
+         AutoMode::Instant => AutoMode::Off,
+      };
 
-      if self.auto_upload_armed {
-         if self.is_busy() {
-            self.auto_upload_armed = false;
-            self.log("auto-upload: cannot arm while busy");
-         } else if self.can_upload() {
-            self.log("auto-upload: armed, waiting for Teensy...");
-            self.upload_triggered_by_auto = true;
-            self.do_upload(cx, true);
-         } else {
-            self.log("auto-upload: armed (load a .hex and select a device to start)");
-         }
-      } else {
-         self.log("auto-upload: disarmed");
+      match self.auto_mode {
+         AutoMode::Wait => {
+            if self.can_upload() {
+               self.log("auto-wait: device present, uploading...");
+               self.start_auto_wait(cx);
+            } else if self.selected_hex.is_some() {
+               self.log("auto-wait: armed, waiting for device...");
+            } else {
+               self.log("auto-wait: load a .hex to arm");
+               self.auto_mode = AutoMode::Off;
+            }
+         },
+         AutoMode::Instant => {
+            if self.can_upload() {
+               self.log("auto-instant: device present, uploading now...");
+               self.upload_triggered_by_auto = true;
+               self.do_upload(cx);
+            } else if self.selected_hex.is_some() {
+               self.log("auto-instant: armed, waiting for device...");
+            } else {
+               self.log("auto-instant: load a .hex to arm");
+               self.auto_mode = AutoMode::Off;
+            }
+         },
+         AutoMode::Off => {
+            self.log("auto: off");
+            self.upload_triggered_by_auto = false;
+            self.blink_task = None;
+            self.blink_visible = true;
+            if matches!(self.status, AppStatus::Uploading) {
+               self.refresh_ready_status();
+            }
+         },
       }
 
       cx.notify();
    }
 
-   fn do_upload(&mut self, cx: &mut Context<Self>, wait: bool) {
+   fn do_upload(&mut self, cx: &mut Context<Self>) {
       let Some(tycmd) = self.tycmd.clone() else {
          self.status =
             AppStatus::Error(AppErrorKind::MissingTycmd(self.expected_tycmd_path.clone()));
@@ -259,7 +293,7 @@ impl BeaconApp {
          return;
       };
 
-      if !wait && self.selected_device_index.is_none() {
+      if self.selected_device_index.is_none() {
          self.status = AppStatus::Error(AppErrorKind::MultipleDevicesNoSelection);
          self.log_error("cannot upload: select a Teensy first");
          cx.notify();
@@ -268,13 +302,7 @@ impl BeaconApp {
 
       self.status = AppStatus::Uploading;
       self.blink_visible = true;
-
-      if wait {
-         self.log_command(format!("tycmd upload --wait {}", hex_path.display()));
-      } else {
-         self.log_command(format!("tycmd upload {}", hex_path.display()));
-      }
-
+      self.log_command(format!("tycmd upload {}", hex_path.display()));
       cx.notify();
 
       let blink_task = cx.spawn(
@@ -317,13 +345,7 @@ impl BeaconApp {
          async move |this: WeakEntity<BeaconApp>, cx: &mut AsyncApp| {
             let result: anyhow::Result<CommandOutput> = cx
                .background_executor()
-               .spawn(async move {
-                  if wait {
-                     tycmd.upload_wait(&hex_path)
-                  } else {
-                     tycmd.upload(&hex_path)
-                  }
-               })
+               .spawn(async move { tycmd.upload(&hex_path) })
                .await;
 
             let _ = this.update(cx, |this, cx| {
@@ -332,9 +354,10 @@ impl BeaconApp {
                      let was_auto = this.upload_triggered_by_auto;
                      this.finish_upload(output);
                      if was_auto {
-                        this.auto_upload_armed = false;
                         this.upload_triggered_by_auto = false;
-                        this.log("auto-upload: disarmed after upload");
+                        if this.auto_mode == AutoMode::Instant {
+                           this.log("auto-instant: waiting for next device...");
+                        }
                      }
                   },
                   Err(error) => {
@@ -364,8 +387,192 @@ impl BeaconApp {
       )
    }
 
+   fn start_auto_wait(&mut self, cx: &mut Context<Self>) {
+      let Some(tycmd) = self.tycmd.clone() else {
+         return;
+      };
+      let Some(hex_path) = self.selected_hex.clone() else {
+         return;
+      };
+
+      self.upload_triggered_by_auto = true;
+      self.status = AppStatus::Uploading;
+      self.blink_visible = true;
+      self.log_command(format!("tycmd upload --wait {}", hex_path.display()));
+      cx.notify();
+
+      let blink_task = cx.spawn(
+         async move |this: WeakEntity<BeaconApp>, cx: &mut AsyncApp| {
+            'outer: loop {
+               for _ in 0..10u8 {
+                  for visible in [true, false] {
+                     let still_uploading = this
+                        .update(cx, |this, cx| {
+                           if matches!(this.status, AppStatus::Uploading) {
+                              this.blink_visible = visible;
+                              cx.notify();
+                              true
+                           } else {
+                              false
+                           }
+                        })
+                        .unwrap_or(false);
+
+                     if !still_uploading {
+                        break 'outer;
+                     }
+
+                     cx.background_executor()
+                        .timer(std::time::Duration::from_millis(60))
+                        .await;
+                  }
+               }
+
+               cx.background_executor()
+                  .timer(std::time::Duration::from_millis(800))
+                  .await;
+            }
+         },
+      );
+
+      self.blink_task = Some(blink_task);
+
+      let task = cx.spawn(
+         async move |this: WeakEntity<BeaconApp>, cx: &mut AsyncApp| {
+            let result: anyhow::Result<CommandOutput> = cx
+               .background_executor()
+               .spawn(async move { tycmd.upload_wait(&hex_path) })
+               .await;
+
+            let _ = this.update(cx, |this, cx| {
+               match result {
+                  Ok(output) => {
+                     this.append_command_output(&output);
+                     if output.is_success() {
+                        this.log_success("auto-wait: upload succeeded");
+                     } else {
+                        this.log_error(command_failure_line("tycmd upload --wait", &output));
+                     }
+                  },
+                  Err(error) => {
+                     this.log_error(format!("auto-wait: {error}"));
+                  },
+               }
+
+               if this.auto_mode == AutoMode::Wait && !this.devices.is_empty() {
+                  this.start_auto_wait(cx);
+                  return;
+               }
+
+               if this.auto_mode == AutoMode::Wait {
+                  this.log("auto-wait: waiting for next device...");
+               }
+
+               this.active_task = None;
+               this.blink_task = None;
+               this.blink_visible = true;
+               cx.notify();
+            });
+         },
+      );
+
+      self.active_task = Some(task);
+   }
+
+   fn start_auto_scan(&mut self, cx: &mut Context<Self>) {
+      let Some(tycmd) = self.tycmd.clone() else {
+         return;
+      };
+
+      let task = cx.spawn(
+         async move |this: WeakEntity<BeaconApp>, cx: &mut AsyncApp| {
+            loop {
+               cx.background_executor()
+                  .timer(std::time::Duration::from_secs(1))
+                  .await;
+
+               let result: anyhow::Result<CommandOutput> = cx
+                  .background_executor()
+                  .spawn({
+                     let tycmd = tycmd.clone();
+                     async move { tycmd.list() }
+                  })
+                  .await;
+
+               let _ = this.update(cx, |this, cx| {
+                  let Ok(output) = result else {
+                     return;
+                  };
+
+                  if !output.is_success() {
+                     return;
+                  }
+
+                  let devices = tycmd::parse_devices(&output.stdout);
+                  let old_lines: Vec<String> =
+                     this.devices.iter().map(|d| d.raw_line.clone()).collect();
+                  let new_lines: Vec<String> = devices.iter().map(|d| d.raw_line.clone()).collect();
+
+                  if old_lines == new_lines {
+                     return;
+                  }
+
+                  let old_count = this.devices.len();
+                  this.devices = devices;
+
+                  if this.devices.len() > old_count {
+                     this.log(format!(
+                        "auto-scan: {} device(s) detected",
+                        this.devices.len()
+                     ));
+                  }
+
+                  if this.devices.len() == 1 && this.selected_device_index.is_none() {
+                     this.selected_device_index = Some(0);
+                  }
+
+                  if let Some(idx) = this.selected_device_index
+                     && idx >= this.devices.len()
+                  {
+                     this.selected_device_index = None;
+                  }
+
+                  this.refresh_ready_status();
+
+                  if this.auto_mode == AutoMode::Instant
+                     && !this.devices.is_empty()
+                     && this.selected_hex.is_some()
+                     && !this.is_busy()
+                  {
+                     this.log("auto-instant: device detected, uploading...");
+                     this.upload_triggered_by_auto = true;
+                     this.do_upload(cx);
+                  }
+
+                  if this.auto_mode == AutoMode::Wait
+                     && !this.devices.is_empty()
+                     && this.selected_hex.is_some()
+                     && !this.is_busy()
+                     && this.active_task.is_none()
+                  {
+                     this.log("auto-wait: device detected, starting upload...");
+                     this.start_auto_wait(cx);
+                  }
+
+                  this.sync_chevron_phase();
+                  cx.notify();
+               });
+            }
+         },
+      );
+
+      self.auto_scan_task = Some(task);
+   }
+
    pub fn current_chevron_phase(&self) -> u8 {
-      if self.can_upload() || matches!(self.status, AppStatus::Uploading) || self.auto_upload_armed
+      if self.can_upload()
+         || matches!(self.status, AppStatus::Uploading)
+         || self.auto_mode != AutoMode::Off
       {
          2
       } else if self.selected_hex.is_some() && self.selected_device_index.is_none() {

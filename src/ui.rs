@@ -26,6 +26,7 @@ use crate::{
    app::{
       AppErrorKind,
       AppStatus,
+      AutoMode,
       BeaconApp,
    },
    theme::*,
@@ -244,7 +245,8 @@ impl BeaconApp {
 
    fn upload_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
       let can_upload = self.can_upload();
-      let auto_disabled = !self.auto_upload_armed && !can_upload;
+      let can_auto = self.tycmd.is_some() && self.selected_hex.is_some();
+      let auto_disabled = self.auto_mode == AutoMode::Off && !can_auto;
       panel(
          "[03]",
          "UPLOAD",
@@ -255,7 +257,7 @@ impl BeaconApp {
       .child(data_field(
          "STATUS",
          upload_status(self),
-         can_upload || self.auto_upload_armed,
+         can_upload || self.auto_mode != AutoMode::Off,
       ))
       .child(
          div()
@@ -263,13 +265,13 @@ impl BeaconApp {
             .gap_1p5()
             .child(
                action_button(
-                  if self.auto_upload_armed {
-                     "AUTO: ON"
-                  } else {
-                     "AUTO: OFF"
+                  match self.auto_mode {
+                     AutoMode::Wait => "AUTO: WAIT",
+                     AutoMode::Instant => "AUTO: INSTANT",
+                     AutoMode::Off => "AUTO: OFF",
                   },
                   auto_disabled,
-                  cx.listener(Self::toggle_auto_upload),
+                  cx.listener(Self::cycle_auto_mode),
                )
                .flex_1(),
             )
@@ -388,7 +390,9 @@ fn device_module_status(app: &BeaconApp) -> ModuleStatus {
 fn upload_module_status(app: &BeaconApp) -> ModuleStatus {
    if matches!(app.status, AppStatus::Success) {
       ModuleStatus::Done
-   } else if app.can_upload() || matches!(app.status, AppStatus::Uploading) || app.auto_upload_armed
+   } else if app.can_upload()
+      || matches!(app.status, AppStatus::Uploading)
+      || app.auto_mode != AutoMode::Off
    {
       ModuleStatus::Next
    } else {
@@ -728,18 +732,22 @@ fn device_status(app: &BeaconApp) -> String {
 }
 
 fn upload_status(app: &BeaconApp) -> &'static str {
-   if app.auto_upload_armed {
-      "AUTO-ARMED"
-   } else if app.can_upload() {
-      "ARMED"
-   } else if app.tycmd.is_none() {
-      "TYCMD MISSING"
-   } else if app.selected_hex.is_none() {
-      "SELECT HEX"
-   } else if app.selected_device_index.is_none() {
-      "SELECT DEVICE"
-   } else {
-      "BUSY"
+   match app.auto_mode {
+      AutoMode::Wait => "AUTO-WAIT",
+      AutoMode::Instant => "AUTO-INSTANT",
+      AutoMode::Off => {
+         if app.can_upload() {
+            "ARMED"
+         } else if app.tycmd.is_none() {
+            "TYCMD MISSING"
+         } else if app.selected_hex.is_none() {
+            "SELECT HEX"
+         } else if app.selected_device_index.is_none() {
+            "SELECT DEVICE"
+         } else {
+            "BUSY"
+         }
+      },
    }
 }
 
