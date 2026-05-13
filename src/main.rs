@@ -69,8 +69,8 @@ fn main() {
             KeyBinding::new("cmd-shift-r", actions::ScanUsb, Some("Beacon")),
             KeyBinding::new("cmd-u", actions::Upload, Some("Beacon")),
             KeyBinding::new("cmd-r", actions::CycleAutoMode, Some("Beacon")),
-            KeyBinding::new("cmd-w", actions::Quit, Some("Beacon")),
             KeyBinding::new("cmd-q", actions::Quit, Some("Beacon")),
+            KeyBinding::new("cmd-w", actions::Quit, Some("Beacon")),
          ]);
          cx.set_menus(vec![
             Menu {

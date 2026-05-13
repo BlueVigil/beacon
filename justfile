@@ -53,3 +53,6 @@ package-all:
     just package-linux-x86_64
     just package-windows-aarch64
     just package-windows-x86_64
+
+icon size="1024":
+    ./scripts/render-icon.sh {{size}}
