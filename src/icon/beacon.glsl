@@ -110,7 +110,7 @@ vec3 normalAt(vec3 p) {
 
 void main() {
    vec2 uv = (gl_FragCoord.xy * 2.0 - u_resolution.xy) / min(u_resolution.x, u_resolution.y);
-   uv *= 1.28;
+   uv *= 0.88;
 
    float grain = hash(floor(gl_FragCoord.xy * 0.45));
    vec3 paper = vec3(0.72, 0.71, 0.67) + (grain - 0.5) * 0.035;
