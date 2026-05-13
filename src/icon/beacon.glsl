@@ -6,175 +6,153 @@ uniform vec2 u_resolution;
 uniform float u_time;
 
 #define PI 3.14159265359
-#define TAU 6.28318530718
+
+mat2 Rot(float a) {
+   float s = sin(a), c = cos(a);
+   return mat2(c, -s, s, c);
+}
 
 float hash(vec2 p) {
    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
 }
 
-mat2 rot(float a) {
-   float s = sin(a);
-   float c = cos(a);
-   return mat2(c, -s, s, c);
+float roundCompat(float x) {
+   return sign(x) * floor(abs(x) + 0.5);
 }
 
-float sdCircle(vec2 p, float r) {
+float smin(float a, float b, float k) {
+   float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+   return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+float smax(float a, float b, float k) {
+   return -smin(-a, -b, k);
+}
+
+float sdCapsule(vec3 p, float r, float h) {
+   p.y -= clamp(p.y, 0.0, h);
    return length(p) - r;
 }
 
-float sdEllipse(vec2 p, vec2 r) {
-   return (length(p / r) - 1.0) * min(r.x, r.y);
+float sdDiamondTorus(vec3 p, float r1, float r2) {
+   vec2 q = vec2(length(p.xz) - r1, p.y);
+   return abs(q.x) + abs(q.y) - r2;
 }
 
-float sdBox(vec2 p, vec2 b) {
-   vec2 d = abs(p) - b;
-   return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
-}
+float starSuccessor(vec3 p) {
+   float rayLength = 1.3;
+   float rayThickness = 0.011;
 
-float sdSegment(vec2 p, vec2 a, vec2 b) {
-   vec2 pa = p - a;
-   vec2 ba = b - a;
-   float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
-   return length(pa - ba * h);
-}
+   float pointAngle = atan(p.z, p.y);
+   float numSpokes = 8.0;
+   float spokeSpacing = 2.0 * PI / numSpokes;
 
-float fill(float d, float px) {
-   return smoothstep(px, -px, d);
-}
+   float spokeIndex = roundCompat(pointAngle / spokeSpacing);
+   float closestSpokeAngle = spokeIndex * spokeSpacing;
 
-float stroke(float d, float w, float px) {
-   return smoothstep(w + px, w - px, abs(d));
-}
+   float size = 0.84;
+   float give = 0.77;
+   vec3 pos = vec3(0.0, 1.5, 0.0);
 
-float line(vec2 p, vec2 a, vec2 b, float w, float px) {
-   return fill(sdSegment(p, a, b) - w, px);
-}
+   float a = abs(closestSpokeAngle);
 
-float diamond(vec2 p, float s, float px) {
-   return fill(abs(p.x) + abs(p.y) - s, px);
-}
-
-float ring(vec2 p, float r, float w, float px) {
-   return stroke(sdCircle(p, r), w, px);
-}
-
-float spokeSuccessor(vec2 p, float px) {
-   float mark = 0.0;
-
-   for (int i = 0; i < 8; i++) {
-      float a = float(i) * TAU / 8.0;
-      vec2 q = p * rot(-a);
-
-      float rayLength = 0.52;
-      float rayThickness = 0.018;
-      float lobeSize = 0.126;
-      float lobeY = 0.285;
-
-      if (mod(float(i), 2.0) < 0.5) {
-         rayLength = 0.62;
-         rayThickness = 0.022;
-         lobeSize = 0.154;
-         lobeY = 0.330;
-      }
-
-      mark += line(q, vec2(0.0, 0.030), vec2(0.0, rayLength), rayThickness, px);
-      mark += fill(sdEllipse(q - vec2(0.0, lobeY), vec2(lobeSize * 0.62, lobeSize)), px);
-      mark += fill(sdEllipse(q - vec2(0.0, lobeY + 0.115), vec2(lobeSize * 0.42, lobeSize * 0.68)), px);
-
-      float hollowA = fill(sdEllipse(q - vec2(0.052, lobeY + 0.012), vec2(0.045, 0.075)), px);
-      float hollowB = fill(sdEllipse(q - vec2(-0.052, lobeY + 0.012), vec2(0.045, 0.075)), px);
-      mark -= (hollowA + hollowB) * 0.95;
-
-      mark += diamond(q - vec2(0.0, 0.665), 0.030, px);
-      mark += fill(sdCircle(q - vec2(0.0, 0.715), 0.012), px);
+   if (abs(a) < 0.01 || abs(a - PI) < 0.01) {
+      pos = vec3(0.0, 2.2, 0.0);
+      rayThickness = 0.011;
+      rayLength = 3.44;
+   } else if (abs(a - PI / 2.0) < 0.01) {
+      pos = vec3(0.0, 1.5, 0.0);
+      size = 0.4;
+      give = 0.55;
+      rayLength = 2.4;
+   } else if (abs(a - PI / 4.0) < 0.01 || abs(a - 3.0 * PI / 4.0) < 0.01) {
+      pos = vec3(0.0, 1.7, 0.0);
+      rayLength = 3.0;
    }
 
-   return clamp(mark, 0.0, 1.0);
+   vec3 spokePt = p;
+   spokePt.yz *= Rot(-closestSpokeAngle);
+
+   float rays = sdCapsule(spokePt, rayThickness, rayLength);
+
+   vec3 torusPos = spokePt - pos;
+   torusPos.xy *= Rot(PI / 2.0);
+   float torus = sdDiamondTorus(torusPos, size, 0.02);
+
+   return smin(rays, torus, give);
 }
 
-float dial(vec2 p, float px) {
-   float d = 0.0;
-   d += ring(p, 0.610, 0.010, px);
-   d += ring(p, 0.455, 0.006, px);
-   d += ring(p, 0.315, 0.004, px) * 0.70;
-
-   for (int i = 0; i < 32; i++) {
-      float a = float(i) * TAU / 32.0;
-      vec2 dir = vec2(cos(a), sin(a));
-      float longTick = step(0.75, hash(vec2(float(i), 4.0)));
-      d += line(p, dir * 0.615, dir * (0.650 + longTick * 0.045), 0.0038, px) * 0.72;
-   }
-
-   for (int i = 0; i < 8; i++) {
-      float a = float(i) * TAU / 8.0;
-      vec2 dir = vec2(cos(a), sin(a));
-      d += diamond(p - dir * 0.610, 0.034, px);
-   }
-
-   return clamp(d, 0.0, 1.0);
+float dial(vec3 p) {
+   p.xy *= Rot(PI / 2.0);
+   float minDist = 1e18;
+   minDist = min(minDist, sdDiamondTorus(p, 1.0, 0.05));
+   minDist = min(minDist, sdDiamondTorus(p, 1.5, 0.02));
+   minDist = min(minDist, sdDiamondTorus(p, 1.9, 0.012));
+   return minDist;
 }
 
-float cutouts(vec2 p, float px) {
-   float c = 0.0;
-
-   for (int i = 0; i < 8; i++) {
-      vec2 q = p * rot(-float(i) * TAU / 8.0);
-      c += fill(sdEllipse(q - vec2(0.0, 0.235), vec2(0.040, 0.090)), px);
-      c += fill(sdEllipse(q - vec2(0.066, 0.360), vec2(0.050, 0.080)), px);
-      c += fill(sdEllipse(q - vec2(-0.066, 0.360), vec2(0.050, 0.080)), px);
-   }
-
-   c += fill(sdCircle(p, 0.075), px);
-   return clamp(c, 0.0, 1.0);
+float Form(vec3 p) {
+   float dialDist = dial(p);
+   float starDist = starSuccessor(p);
+   float form = smin(dialDist, starDist, 0.3);
+   return smax(form, -(length(p) - 0.5), 1.0);
 }
 
-float innerNodes(vec2 p, float px) {
-   float n = 0.0;
-
-   for (int i = 0; i < 8; i++) {
-      vec2 q = p * rot(-float(i) * TAU / 8.0);
-      n += fill(sdCircle(q - vec2(0.0, 0.205), 0.018), px);
-      n += line(q, vec2(0.0, 0.080), vec2(0.0, 0.285), 0.0025, px) * 0.40;
-   }
-
-   return clamp(n, 0.0, 1.0);
+vec3 normalAt(vec3 p) {
+   vec2 e = vec2(0.002, 0.0);
+   return normalize(vec3(
+      Form(p + e.xyy) - Form(p - e.xyy),
+      Form(p + e.yxy) - Form(p - e.yxy),
+      Form(p + e.yyx) - Form(p - e.yyx)
+   ));
 }
 
 void main() {
    vec2 uv = (gl_FragCoord.xy * 2.0 - u_resolution.xy) / min(u_resolution.x, u_resolution.y);
-   float px = 2.0 / min(u_resolution.x, u_resolution.y);
+   uv *= 1.28;
 
-   float paperNoise = hash(floor(gl_FragCoord.xy * 0.42));
-   vec3 paper = vec3(0.705, 0.700, 0.670) + (paperNoise - 0.5) * 0.055;
-   vec3 black = vec3(0.020, 0.018, 0.016);
-   vec3 red = vec3(0.95, 0.110, 0.095);
+   float grain = hash(floor(gl_FragCoord.xy * 0.45));
+   vec3 paper = vec3(0.72, 0.71, 0.67) + (grain - 0.5) * 0.035;
+   vec3 ink = vec3(0.025, 0.022, 0.019);
    vec3 color = paper;
 
-   float vignette = smoothstep(1.28, 0.20, length(uv));
-   color *= mix(0.78, 1.07, vignette);
+   vec3 ro = vec3(6.0, 0.0, 0.0);
+   vec3 rd = normalize(vec3(-1.35, uv.y, uv.x));
 
-   vec2 p = uv * 1.05;
-   float shadow = fill(sdCircle(p, 0.72), px) * 0.075;
-   float shape = max(dial(p, px), spokeSuccessor(p, px));
-   float holes = cutouts(p, px);
-   float nodes = innerNodes(p, px);
+   float distanceMarched = 0.0;
+   float distToShape = 0.0;
+   bool hit = false;
 
-   shape = clamp(shape - holes, 0.0, 1.0);
+   for (int i = 0; i < 96; i++) {
+      vec3 p = ro + rd * distanceMarched;
+      distToShape = Form(p);
+      distanceMarched += distToShape * 0.82;
 
-   color = mix(color, black, shadow);
-   color = mix(color, black, shape * 0.96);
-   color = mix(color, paper, holes * 0.98);
-   color = mix(color, black, nodes * 0.64);
+      if (distanceMarched > 20.0) {
+         break;
+      }
 
-   float coreCut = fill(sdCircle(p, 0.088), px);
-   float coreRing = ring(p, 0.112, 0.008, px);
-   float diode = fill(sdBox(p, vec2(0.030)) - 0.006, px);
-   float glow = fill(sdCircle(p, 0.095), px) * 0.22;
+      if (abs(distToShape) < 0.0015) {
+         hit = true;
+         break;
+      }
+   }
 
-   color = mix(color, paper, coreCut * 0.95);
-   color = mix(color, black, coreRing * 0.92);
-   color = mix(color, red, glow);
-   color = mix(color, red, diode);
+   if (hit) {
+      vec3 p = ro + rd * distanceMarched;
+      vec3 n = normalAt(p);
+      float light = 0.72 + 0.28 * clamp(dot(n, normalize(vec3(0.6, 0.9, 0.4))), 0.0, 1.0);
+      color = mix(color, ink, 0.96 * light);
+   }
+
+   float center = length(uv);
+   float diode = smoothstep(0.090, 0.030, abs(uv.x) + abs(uv.y));
+   float glow = smoothstep(0.24, 0.0, center) * 0.18;
+   color = mix(color, vec3(0.94, 0.08, 0.07), glow);
+   color = mix(color, vec3(0.98, 0.10, 0.09), diode);
+
+   float vignette = smoothstep(1.55, 0.35, length(uv * 0.48));
+   color *= mix(0.82, 1.04, vignette);
 
    gl_FragColor = vec4(color, 1.0);
 }
