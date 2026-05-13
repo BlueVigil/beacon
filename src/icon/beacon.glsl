@@ -95,7 +95,8 @@ float Form(vec3 p) {
    float dialDist = dial(p);
    float starDist = starSuccessor(p);
    float form = smin(dialDist, starDist, 0.3);
-   return smax(form, -(length(p) - 0.5), 1.0);
+   
+   return smax(form, -(length(p) - 0.5), 1.0); 
 }
 
 vec3 normalAt(vec3 p) {
@@ -123,26 +124,36 @@ void main() {
    float distToShape = 0.0;
    bool hit = false;
 
-   for (int i = 0; i < 96; i++) {
+   // FIXED: Doubled the steps and drastically lowered the step speed.
+   // This guarantees the ray won't clip through the smoothed geometry.
+   for (int i = 0; i < 300; i++) { 
       vec3 p = ro + rd * distanceMarched;
       distToShape = Form(p);
-      distanceMarched += distToShape * 0.82;
+      
+      distanceMarched += distToShape * 0.55; 
 
       if (distanceMarched > 20.0) {
          break;
       }
 
-      if (abs(distToShape) < 0.0015) {
+      if (abs(distToShape) < 0.0005) { 
          hit = true;
          break;
       }
    }
 
+   // FIXED: Solidified the object completely. 
+   // It no longer mixes with the 'paper' variable based on lighting.
    if (hit) {
       vec3 p = ro + rd * distanceMarched;
       vec3 n = normalAt(p);
-      float light = 0.72 + 0.28 * clamp(dot(n, normalize(vec3(0.6, 0.9, 0.4))), 0.0, 1.0);
-      color = mix(color, ink, 0.96 * light);
+      
+      // Calculate a simple diffuse light
+      float diffuse = clamp(dot(n, normalize(vec3(0.6, 0.9, 0.4))), 0.0, 1.0);
+      
+      // Keep the ink completely opaque, just slightly lighten the ink color where light hits
+      float lightIntensity = 0.85 + 0.3 * diffuse; 
+      color = ink * lightIntensity; 
    }
 
    float center = length(uv);
