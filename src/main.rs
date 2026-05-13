@@ -1,3 +1,4 @@
+mod actions;
 mod app;
 mod theme;
 mod tycmd;
@@ -17,6 +18,8 @@ use gpui::{
    Application,
    AssetSource,
    Bounds,
+   Focusable,
+   KeyBinding,
    SharedString,
    TitlebarOptions,
    WindowBounds,
@@ -60,6 +63,13 @@ fn main() {
          base: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets"),
       })
       .run(|cx: &mut App| {
+         cx.bind_keys([
+            KeyBinding::new("cmd-o", actions::LoadHex, Some("Beacon")),
+            KeyBinding::new("cmd-shift-r", actions::ScanUsb, Some("Beacon")),
+            KeyBinding::new("cmd-u", actions::Upload, Some("Beacon")),
+            KeyBinding::new("cmd-r", actions::CycleAutoMode, Some("Beacon")),
+         ]);
+
          let bounds = Bounds::centered(None, size(px(1080.0), px(900.0)), cx);
 
          cx.open_window(
@@ -74,7 +84,11 @@ fn main() {
                window_decorations: Some(WindowDecorations::Client),
                ..Default::default()
             },
-            |_, cx| cx.new(BeaconApp::new),
+            |window, cx| {
+               let app = cx.new(BeaconApp::new);
+               window.focus(&app.focus_handle(cx));
+               app
+            },
          )
          .unwrap();
       });

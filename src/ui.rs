@@ -39,6 +39,12 @@ impl Render for BeaconApp {
          .bg(rgb(BG))
          .flex()
          .flex_col()
+         .track_focus(&self.focus_handle)
+         .key_context("Beacon")
+         .on_action(cx.listener(Self::load_hex_action))
+         .on_action(cx.listener(Self::scan_usb_action))
+         .on_action(cx.listener(Self::upload_action))
+         .on_action(cx.listener(Self::cycle_auto_mode_action))
          .child(self.title_bar())
          .child(
             div()

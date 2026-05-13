@@ -3,16 +3,21 @@ use std::path::PathBuf;
 use gpui::{
    AsyncApp,
    Context,
+   FocusHandle,
+   Focusable,
    PathPromptOptions,
    Task,
    WeakEntity,
 };
 
-use crate::tycmd::{
-   self,
-   CommandOutput,
-   TeensyDevice,
-   Tycmd,
+use crate::{
+   actions,
+   tycmd::{
+      self,
+      CommandOutput,
+      TeensyDevice,
+      Tycmd,
+   },
 };
 
 pub struct BeaconApp {
@@ -28,6 +33,7 @@ pub struct BeaconApp {
    pub blink_visible:         bool,
    pub chevron_tick:          u32,
    pub auto_mode:             AutoMode,
+   pub(crate) focus_handle:   FocusHandle,
    chevron_anim_phase:        u8,
    blink_task:                Option<Task<()>>,
    auto_scan_task:            Option<Task<()>>,
@@ -107,6 +113,7 @@ impl BeaconApp {
          blink_visible:            true,
          chevron_tick:             0,
          auto_mode:                AutoMode::Off,
+         focus_handle:             cx.focus_handle(),
          chevron_anim_phase:       0,
          blink_task:               None,
          auto_scan_task:           None,
@@ -135,6 +142,19 @@ impl BeaconApp {
       _window: &mut gpui::Window,
       cx: &mut Context<Self>,
    ) {
+      self.load_hex(cx);
+   }
+
+   pub fn load_hex_action(
+      &mut self,
+      _action: &actions::LoadHex,
+      _window: &mut gpui::Window,
+      cx: &mut Context<Self>,
+   ) {
+      self.load_hex(cx);
+   }
+
+   fn load_hex(&mut self, cx: &mut Context<Self>) {
       if self.is_busy() {
          return;
       }
@@ -195,6 +215,15 @@ impl BeaconApp {
       self.start_scan(cx);
    }
 
+   pub fn scan_usb_action(
+      &mut self,
+      _action: &actions::ScanUsb,
+      _window: &mut gpui::Window,
+      cx: &mut Context<Self>,
+   ) {
+      self.start_scan(cx);
+   }
+
    pub fn select_device(
       &mut self,
       index: usize,
@@ -218,11 +247,22 @@ impl BeaconApp {
       _window: &mut gpui::Window,
       cx: &mut Context<Self>,
    ) {
-      if self.is_busy() {
-         return;
-      }
+      self.upload_selected(cx);
+   }
 
-      self.do_upload(cx);
+   pub fn upload_action(
+      &mut self,
+      _action: &actions::Upload,
+      _window: &mut gpui::Window,
+      cx: &mut Context<Self>,
+   ) {
+      self.upload_selected(cx);
+   }
+
+   fn upload_selected(&mut self, cx: &mut Context<Self>) {
+      if !self.is_busy() {
+         self.do_upload(cx);
+      }
    }
 
    pub fn cycle_auto_mode(
@@ -231,6 +271,23 @@ impl BeaconApp {
       _window: &mut gpui::Window,
       cx: &mut Context<Self>,
    ) {
+      self.cycle_auto(cx);
+   }
+
+   pub fn cycle_auto_mode_action(
+      &mut self,
+      _action: &actions::CycleAutoMode,
+      _window: &mut gpui::Window,
+      cx: &mut Context<Self>,
+   ) {
+      self.cycle_auto(cx);
+   }
+
+   fn cycle_auto(&mut self, cx: &mut Context<Self>) {
+      if self.is_busy() {
+         return;
+      }
+
       self.auto_mode = match self.auto_mode {
          AutoMode::Off => AutoMode::Wait,
          AutoMode::Wait => AutoMode::Instant,
@@ -827,6 +884,12 @@ impl BeaconApp {
             .output_lines
             .drain(0..self.output_lines.len() - MAX_LINES);
       }
+   }
+}
+
+impl Focusable for BeaconApp {
+   fn focus_handle(&self, _cx: &gpui::App) -> FocusHandle {
+      self.focus_handle.clone()
    }
 }
 
