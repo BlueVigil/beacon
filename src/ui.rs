@@ -391,7 +391,7 @@ fn upload_module_status(app: &BeaconApp) -> ModuleStatus {
    if matches!(app.status, AppStatus::Success) {
       ModuleStatus::Done
    } else if app.can_upload()
-      || matches!(app.status, AppStatus::Uploading)
+      || matches!(app.status, AppStatus::Uploading | AppStatus::AutoWaiting)
       || app.auto_mode != AutoMode::Off
    {
       ModuleStatus::Next
@@ -726,6 +726,7 @@ fn device_status(app: &BeaconApp) -> String {
    match app.status {
       AppStatus::Detecting => "SCANNING USB".to_string(),
       AppStatus::Identifying => "CHECKING FIRMWARE".to_string(),
+      AppStatus::AutoWaiting => "AUTO-WAIT ACTIVE".to_string(),
       AppStatus::Error(AppErrorKind::NoDevice) => "NO DEVICE".to_string(),
       AppStatus::Error(AppErrorKind::MultipleDevicesNoSelection) => {
          "MULTIPLE DEVICES - SELECT ONE".to_string()

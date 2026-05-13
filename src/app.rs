@@ -39,6 +39,7 @@ pub struct BeaconApp {
    auto_scan_task:            Option<Task<()>>,
    _chevron_anim_task:        Task<()>,
    upload_triggered_by_auto:  bool,
+   last_auto_upload_device:   Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -47,6 +48,7 @@ pub enum AppStatus {
    SelectingFile,
    Detecting,
    Identifying,
+   AutoWaiting,
    Ready,
    Uploading,
    Success,
@@ -119,6 +121,7 @@ impl BeaconApp {
          auto_scan_task:           None,
          _chevron_anim_task:       chevron_anim_task,
          upload_triggered_by_auto: false,
+         last_auto_upload_device:  None,
       };
 
       match Tycmd::resolve() {
@@ -217,6 +220,7 @@ impl BeaconApp {
       }
 
       self.selected_device_index = Some(index);
+      self.last_auto_upload_device = None;
       self.log(format!("selected device: {}", self.devices[index].label));
       self.refresh_ready_status();
       self.sync_chevron_phase();
@@ -274,6 +278,7 @@ impl BeaconApp {
             if self.can_upload() {
                self.log("auto-instant: device present, uploading now...");
                self.upload_triggered_by_auto = true;
+               self.remember_auto_upload_device();
                self.do_upload(cx);
             } else if self.selected_hex.is_some() {
                self.log("auto-instant: armed, waiting for device...");
@@ -287,7 +292,7 @@ impl BeaconApp {
             self.upload_triggered_by_auto = false;
             self.blink_task = None;
             self.blink_visible = true;
-            if matches!(self.status, AppStatus::Uploading) {
+            if matches!(self.status, AppStatus::Uploading | AppStatus::AutoWaiting) {
                self.refresh_ready_status();
             }
          },
@@ -333,7 +338,7 @@ impl BeaconApp {
                   for visible in [true, false] {
                      let still_uploading = this
                         .update(cx, |this, cx| {
-                           if matches!(this.status, AppStatus::Uploading) {
+                           if matches!(this.status, AppStatus::AutoWaiting) {
                               this.blink_visible = visible;
                               cx.notify();
                               true
@@ -417,7 +422,7 @@ impl BeaconApp {
       };
 
       self.upload_triggered_by_auto = true;
-      self.status = AppStatus::Uploading;
+      self.status = AppStatus::AutoWaiting;
       self.blink_visible = true;
       self.log_command(format!("tycmd upload --wait {}", hex_path.display()));
       cx.notify();
@@ -429,7 +434,7 @@ impl BeaconApp {
                   for visible in [true, false] {
                      let still_uploading = this
                         .update(cx, |this, cx| {
-                           if matches!(this.status, AppStatus::Uploading) {
+                           if matches!(this.status, AppStatus::AutoWaiting) {
                               this.blink_visible = visible;
                               cx.notify();
                               true
@@ -460,10 +465,27 @@ impl BeaconApp {
 
       let task = cx.spawn(
          async move |this: WeakEntity<BeaconApp>, cx: &mut AsyncApp| {
-            let result: anyhow::Result<CommandOutput> = cx
-               .background_executor()
-               .spawn(async move { tycmd.upload_wait(&hex_path) })
-               .await;
+            let (sender, receiver) = std::sync::mpsc::channel();
+
+            std::thread::spawn(move || {
+               let _ = sender.send(tycmd.upload_wait(&hex_path));
+            });
+
+            let result: anyhow::Result<CommandOutput> = loop {
+               match receiver.try_recv() {
+                  Ok(result) => break result,
+                  Err(std::sync::mpsc::TryRecvError::Empty) => {
+                     cx.background_executor()
+                        .timer(std::time::Duration::from_millis(100))
+                        .await;
+                  },
+                  Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                     break Err(anyhow::anyhow!(
+                        "auto-wait worker exited before reporting result"
+                     ));
+                  },
+               }
+            };
 
             let _ = this.update(cx, |this, cx| {
                match result {
@@ -569,9 +591,12 @@ impl BeaconApp {
                         && !this.devices.is_empty()
                         && this.selected_hex.is_some()
                         && !this.is_busy()
+                        && this.active_task.is_none()
+                        && this.auto_upload_device_changed()
                      {
                         this.log("auto-instant: device detected, uploading...");
                         this.upload_triggered_by_auto = true;
+                        this.remember_auto_upload_device();
                         this.do_upload(cx);
                      }
 
@@ -601,7 +626,7 @@ impl BeaconApp {
 
    pub fn current_chevron_phase(&self) -> u8 {
       if self.can_upload()
-         || matches!(self.status, AppStatus::Uploading)
+         || matches!(self.status, AppStatus::Uploading | AppStatus::AutoWaiting)
          || self.auto_mode != AutoMode::Off
       {
          2
@@ -624,7 +649,32 @@ impl BeaconApp {
       self.tycmd.is_some()
          && self.selected_hex.is_some()
          && self.selected_device_index.is_some()
+         && !matches!(self.status, AppStatus::AutoWaiting)
          && !self.is_busy()
+   }
+
+   fn auto_upload_device_changed(&self) -> bool {
+      self
+         .current_auto_upload_device()
+         .is_some_and(|device| self.last_auto_upload_device.as_deref() != Some(device.as_str()))
+   }
+
+   fn remember_auto_upload_device(&mut self) {
+      self.last_auto_upload_device = self.current_auto_upload_device();
+   }
+
+   fn current_auto_upload_device(&self) -> Option<String> {
+      self
+         .selected_device_index
+         .and_then(|index| self.devices.get(index))
+         .or_else(|| {
+            if self.devices.len() == 1 {
+               self.devices.first()
+            } else {
+               None
+            }
+         })
+         .map(|device| stable_device_identity(&device.raw_line))
    }
 
    fn start_scan(&mut self, cx: &mut Context<Self>) {
@@ -874,4 +924,12 @@ fn combined_output(output: &CommandOutput) -> String {
 
 fn command_failure_line(command: &str, output: &CommandOutput) -> String {
    format!("{command} failed with exit {:?}", output.status_code)
+}
+
+fn stable_device_identity(raw_line: &str) -> String {
+   raw_line
+      .split_whitespace()
+      .next()
+      .unwrap_or(raw_line)
+      .to_string()
 }
