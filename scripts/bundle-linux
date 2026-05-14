@@ -43,15 +43,13 @@ binary="target/${target}/release/beacon"
 [[ -f "${binary}" ]] || { printf 'binary not found: %s\n' "${binary}" >&2; exit 1; }
 "${cross_prefix}strip" "${binary}"
 
-rm -rf target/dist
 appdir="target/dist/BEACON.AppDir"
-mkdir -p "${appdir}/usr/bin" "${appdir}/usr/lib" "${appdir}/usr/share"
+rm -rf target/dist linuxdeploy BEACON-*.AppImage
+mkdir -p "${appdir}/usr/bin/resources" "${appdir}/usr/lib" "${appdir}/usr/share"
 
 cp "${binary}" "${appdir}/usr/bin/beacon"
 chmod +x "${appdir}/usr/bin/beacon"
-mkdir -p "${appdir}/usr/lib/assets"
-cp -R assets/fonts "${appdir}/usr/lib/assets/"
-cp -R assets/icons "${appdir}/usr/lib/assets/"
+cp -R assets "${appdir}/usr/bin/resources/assets"
 
 mkdir -p "${appdir}/usr/share/applications" "${appdir}/usr/share/icons/hicolor/512x512/apps"
 cp assets/icons/beacon.png "${appdir}/usr/share/icons/hicolor/512x512/apps/dev.beacon.BEACON.png"

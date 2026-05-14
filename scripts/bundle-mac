@@ -18,13 +18,13 @@ binary="target/${target}/release/beacon"
 [[ -f "${binary}" ]] || { printf 'binary not found: %s\n' "${binary}" >&2; exit 1; }
 strip "${binary}"
 
-app_dir="target/dist/BEACON.app"
-rm -rf "target/dist"
+app_dir="target/bundle/dmg-root/BEACON.app"
+rm -rf "target/dist" "target/bundle"
 mkdir -p "${app_dir}/Contents/MacOS" "${app_dir}/Contents/Resources"
 
 cp "${binary}" "${app_dir}/Contents/MacOS/beacon"
 chmod +x "${app_dir}/Contents/MacOS/beacon"
-cp -R assets/fonts "${app_dir}/Contents/Resources/"
+cp -R assets "${app_dir}/Contents/Resources/assets"
 cp assets/icons/Beacon.icns "${app_dir}/Contents/Resources/Beacon.icns"
 
 cat > "${app_dir}/Contents/Info.plist" <<'PLIST'
@@ -72,13 +72,22 @@ cat > "${app_dir}/Contents/Info.plist" <<'PLIST'
 PLIST
 
 mkdir -p target/dist
-deno run --allow-all npm:create-dmg \
-  --overwrite \
-  --dmg-title "BEACON" \
-  "${app_dir}" \
-  target/dist/ \
-  || true
+if ! command -v create-dmg >/dev/null 2>&1; then
+  brew install create-dmg
+fi
 
-mv target/dist/BEACON-*.dmg "target/dist/BEACON-macos-${arch}.dmg"
+create-dmg \
+  --volname "BEACON" \
+  --volicon assets/icons/Beacon.icns \
+  --window-size 660 400 \
+  --icon-size 120 \
+  --icon "BEACON.app" 180 170 \
+  --hide-extension "BEACON.app" \
+  --app-drop-link 480 170 \
+  --no-internet-enable \
+  "target/dist/BEACON-macos-${arch}.dmg" \
+  "target/bundle/dmg-root"
+
+rm -rf "target/bundle"
 
 printf 'created target/dist/BEACON-macos-%s.dmg\n' "${arch}"

@@ -51,11 +51,6 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Deno
-        if: startsWith(matrix.name, 'macos-')
-        shell: bash
-        run: curl -fsSL https://deno.land/install.sh | sh && echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
-
       - name: Install ARM64 MSVC tools
         if: matrix.name == 'windows-aarch64'
         shell: pwsh

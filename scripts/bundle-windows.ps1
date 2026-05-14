@@ -25,10 +25,10 @@ if (-not (Test-Path $binary)) {
 $distDir = "target/dist"
 $bundleDir = "$distDir/beacon"
 if (Test-Path $distDir) { Remove-Item -Recurse -Force $distDir }
-New-Item -ItemType Directory -Force -Path $bundleDir | Out-Null
+New-Item -ItemType Directory -Force -Path "$bundleDir/resources" | Out-Null
 
 Copy-Item $binary "$bundleDir/beacon.exe"
-Copy-Item -Recurse "assets" "$bundleDir/assets"
+Copy-Item -Recurse "assets" "$bundleDir/resources/assets"
 
 Compress-Archive -Path "$bundleDir/*" -DestinationPath "$distDir/BEACON-windows-$Architecture.zip"
 
