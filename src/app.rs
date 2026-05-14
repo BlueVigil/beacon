@@ -658,10 +658,7 @@ impl BeaconApp {
    }
 
    pub fn can_upload(&self) -> bool {
-      self.selected_hex.is_some()
-         && self.selected_device_index.is_some()
-         && !matches!(self.status, AppStatus::AutoWaiting)
-         && !self.is_busy()
+      self.selected_hex.is_some() && self.selected_device_index.is_some() && !self.is_busy()
    }
 
    fn start_scan(&mut self, cx: &mut Context<Self>) {
