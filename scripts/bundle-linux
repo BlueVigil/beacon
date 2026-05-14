@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+
+set -euo pipefail
+
+target="${1:?usage: scripts/bundle-linux <target-triple>}"
+
+case "${target}" in
+  aarch64-*|arm64-*) arch="aarch64" ;;
+  x86_64-*) arch="x86_64" ;;
+  *) printf 'unsupported target: %s\n' "${target}" >&2; exit 1 ;;
+esac
+
+rustup target add "${target}" 2>/dev/null || true
+cargo build --release --target "${target}"
+
+binary="target/${target}/release/beacon"
+[[ -f "${binary}" ]] || { printf 'binary not found: %s\n' "${binary}" >&2; exit 1; }
+strip "${binary}"
+
+app_dir="target/dist/beacon"
+rm -rf "target/dist"
+mkdir -p "${app_dir}/bin" "${app_dir}/lib"
+
+cp "${binary}" "${app_dir}/bin/beacon"
+chmod +x "${app_dir}/bin/beacon"
+cp -R assets/fonts "${app_dir}/lib/assets/fonts"
+cp -R assets/icons "${app_dir}/lib/assets/icons"
+
+mkdir -p "${app_dir}/share/applications" "${app_dir}/share/icons/hicolor/512x512/apps"
+
+cp assets/icons/beacon.png "${app_dir}/share/icons/hicolor/512x512/apps/dev.beacon.BEACON.png"
+
+cat > "${app_dir}/share/applications/dev.beacon.BEACON.desktop" <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=BEACON
+Comment=Flash Teensy firmware
+Exec=beacon %f
+Icon=dev.beacon.BEACON
+Terminal=false
+Categories=Development;Electronics;
+MimeType=application/x-intel-hex;text/x-hex;
+DESKTOP
+
+cat > "${app_dir}/share/mime/packages/dev.beacon.BEACON.xml" <<'MIME'
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-intel-hex">
+    <comment>Intel HEX firmware</comment>
+    <glob pattern="*.hex"/>
+  </mime-type>
+</mime-info>
+MIME
+
+mkdir -p target/dist
+tar -czf "target/dist/BEACON-linux-${arch}.tar.gz" -C target/dist beacon
+
+printf 'created target/dist/BEACON-linux-%s.tar.gz\n' "${arch}"

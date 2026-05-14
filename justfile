@@ -25,34 +25,31 @@ clean:
 run:
     RUSTC={{rustc}} {{cargo}} run
 
-package target:
-    ./scripts/package.sh {{target}}
+bundle-mac-aarch64:
+    ./scripts/bundle-mac aarch64-apple-darwin
 
-package-macos-aarch64:
-    just package aarch64-apple-darwin
+bundle-mac-x86_64:
+    ./scripts/bundle-mac x86_64-apple-darwin
 
-package-macos-x86_64:
-    just package x86_64-apple-darwin
+bundle-linux-aarch64:
+    ./scripts/bundle-linux aarch64-unknown-linux-gnu
 
-package-linux-aarch64:
-    just package aarch64-unknown-linux-gnu
+bundle-linux-x86_64:
+    ./scripts/bundle-linux x86_64-unknown-linux-gnu
 
-package-linux-x86_64:
-    just package x86_64-unknown-linux-gnu
+bundle-windows-aarch64:
+    pwsh ./scripts/bundle-windows.ps1 -Architecture aarch64
 
-package-windows-aarch64:
-    just package aarch64-pc-windows-msvc
+bundle-windows-x86_64:
+    pwsh ./scripts/bundle-windows.ps1 -Architecture x86_64
 
-package-windows-x86_64:
-    just package x86_64-pc-windows-gnu
-
-package-all:
-    just package-macos-aarch64
-    just package-macos-x86_64
-    just package-linux-aarch64
-    just package-linux-x86_64
-    just package-windows-aarch64
-    just package-windows-x86_64
+bundle-all:
+    just bundle-mac-aarch64
+    just bundle-mac-x86_64
+    just bundle-linux-aarch64
+    just bundle-linux-x86_64
+    just bundle-windows-aarch64
+    just bundle-windows-x86_64
 
 icon size="1024":
     ./scripts/render-icon.sh {{size}}

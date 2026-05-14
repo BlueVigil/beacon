@@ -7,3 +7,6 @@
 # SOURCE
 !**/
 !*.sh
+!*.ps1
+!bundle-mac
+!bundle-linux

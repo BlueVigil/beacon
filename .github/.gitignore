@@ -1,0 +1,6 @@
+*
+!.gitignore
+
+# SOURCE
+!**/
+!*.yml

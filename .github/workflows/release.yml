@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-aarch64
+            runner: blacksmith-6vcpu-macos-15
+            shell: bash
+            command: ./scripts/bundle-mac aarch64-apple-darwin
+
+          - name: macos-x86_64
+            runner: blacksmith-6vcpu-macos-15
+            shell: bash
+            command: ./scripts/bundle-mac x86_64-apple-darwin
+
+          - name: linux-x86_64
+            runner: blacksmith-4vcpu-ubuntu-2404
+            shell: bash
+            command: ./scripts/bundle-linux x86_64-unknown-linux-gnu
+
+          - name: linux-aarch64
+            runner: blacksmith-4vcpu-ubuntu-2404-arm
+            shell: bash
+            command: ./scripts/bundle-linux aarch64-unknown-linux-gnu
+
+          - name: windows-x86_64
+            runner: blacksmith-4vcpu-windows-2025
+            shell: pwsh
+            command: ./scripts/bundle-windows.ps1 -Architecture x86_64
+
+          - name: windows-aarch64
+            runner: blacksmith-4vcpu-windows-2025
+            shell: pwsh
+            command: ./scripts/bundle-windows.ps1 -Architecture aarch64
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bundle
+        if: matrix.shell == 'bash'
+        shell: bash
+        run: ${{ matrix.command }}
+
+      - name: Bundle
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        run: ${{ matrix.command }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: target/dist/*
+          if-no-files-found: error
+
+  release:
+    needs: bundle
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true

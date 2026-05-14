@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+
+set -euo pipefail
+
+target="${1:?usage: scripts/bundle-mac <target-triple>}"
+
+case "${target}" in
+  aarch64-*|arm64-*) arch="aarch64" ;;
+  x86_64-*) arch="x86_64" ;;
+  *) printf 'unsupported target: %s\n' "${target}" >&2; exit 1 ;;
+esac
+
+rustup target add "${target}" 2>/dev/null || true
+cargo build --release --target "${target}"
+
+binary="target/${target}/release/beacon"
+[[ -f "${binary}" ]] || { printf 'binary not found: %s\n' "${binary}" >&2; exit 1; }
+strip "${binary}"
+
+app_dir="target/dist/BEACON.app"
+rm -rf "target/dist"
+mkdir -p "${app_dir}/Contents/MacOS" "${app_dir}/Contents/Resources"
+
+cp "${binary}" "${app_dir}/Contents/MacOS/beacon"
+chmod +x "${app_dir}/Contents/MacOS/beacon"
+cp assets/fonts "${app_dir}/Contents/Resources/" -R
+cp assets/icons/Beacon.icns "${app_dir}/Contents/Resources/Beacon.icns"
+
+cat > "${app_dir}/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>CFBundleExecutable</key>
+    <string>beacon</string>
+    <key>CFBundleIdentifier</key>
+    <string>dev.beacon.app</string>
+    <key>CFBundleName</key>
+    <string>BEACON</string>
+    <key>CFBundleDisplayName</key>
+    <string>BEACON</string>
+    <key>CFBundleIconFile</key>
+    <string>Beacon</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+      <dict>
+        <key>CFBundleTypeName</key>
+        <string>Intel HEX Firmware</string>
+        <key>CFBundleTypeRole</key>
+        <string>Viewer</string>
+        <key>CFBundleTypeExtensions</key>
+        <array>
+          <string>hex</string>
+        </array>
+        <key>LSHandlerRank</key>
+        <string>Alternate</string>
+      </dict>
+    </array>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleVersion</key>
+    <string>0.1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+  </dict>
+</plist>
+PLIST
+
+mkdir -p target/dist
+hdiutil create -volname BEACON -srcfolder "${app_dir}" -ov -format UDZO \
+  "target/dist/BEACON-macos-${arch}.dmg"
+
+printf 'created target/dist/BEACON-macos-%s.dmg\n' "${arch}"
