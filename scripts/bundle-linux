@@ -11,36 +11,51 @@ case "${target}" in
   *) printf 'unsupported target: %s\n' "${target}" >&2; exit 1 ;;
 esac
 
-sudo apt-get update && sudo apt-get install -y \
-  libudev-dev \
-  libxcb1-dev \
-  libxcb-render0-dev \
-  libxcb-shape0-dev \
-  libxcb-xfixes0-dev \
-  libxkbcommon-dev \
-  libxkbcommon-x11-dev \
-  libasound2-dev
+host_arch="$(dpkg --print-architecture)"
+
+if [[ "${arch}" == "aarch64" && "${host_arch}" == "amd64" ]]; then
+  dpkg --add-architecture arm64
+  apt_suffix=":arm64"
+  cross_prefix="aarch64-linux-gnu-"
+else
+  apt_suffix=""
+  cross_prefix=""
+fi
+
+sudo apt-get update
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  "libudev-dev${apt_suffix}" \
+  "libxcb1-dev${apt_suffix}" \
+  "libxcb-render0-dev${apt_suffix}" \
+  "libxcb-shape0-dev${apt_suffix}" \
+  "libxcb-xfixes0-dev${apt_suffix}" \
+  "libxkbcommon-dev${apt_suffix}" \
+  "libxkbcommon-x11-dev${apt_suffix}" \
+  "libasound2-dev${apt_suffix}" \
+  "libfontconfig-dev${apt_suffix}" \
+  "libfreetype-dev${apt_suffix}" \
+  file
+
 rustup target add "${target}" 2>/dev/null || true
 cargo build --release --target "${target}"
 
 binary="target/${target}/release/beacon"
 [[ -f "${binary}" ]] || { printf 'binary not found: %s\n' "${binary}" >&2; exit 1; }
-strip "${binary}"
+"${cross_prefix}strip" "${binary}"
 
-app_dir="target/dist/beacon"
-rm -rf "target/dist"
-mkdir -p "${app_dir}/bin" "${app_dir}/lib"
+rm -rf target/dist
+appdir="target/dist/BEACON.AppDir"
+mkdir -p "${appdir}/usr/bin" "${appdir}/usr/lib" "${appdir}/usr/share"
 
-cp "${binary}" "${app_dir}/bin/beacon"
-chmod +x "${app_dir}/bin/beacon"
-cp -R assets/fonts "${app_dir}/lib/assets/fonts"
-cp -R assets/icons "${app_dir}/lib/assets/icons"
+cp "${binary}" "${appdir}/usr/bin/beacon"
+chmod +x "${appdir}/usr/bin/beacon"
+cp -R assets/fonts "${appdir}/usr/lib/assets/fonts"
+cp -R assets/icons "${appdir}/usr/lib/assets/icons"
 
-mkdir -p "${app_dir}/share/applications" "${app_dir}/share/icons/hicolor/512x512/apps"
+mkdir -p "${appdir}/usr/share/applications" "${appdir}/usr/share/icons/hicolor/512x512/apps"
+cp assets/icons/beacon.png "${appdir}/usr/share/icons/hicolor/512x512/apps/dev.beacon.BEACON.png"
 
-cp assets/icons/beacon.png "${app_dir}/share/icons/hicolor/512x512/apps/dev.beacon.BEACON.png"
-
-cat > "${app_dir}/share/applications/dev.beacon.BEACON.desktop" <<'DESKTOP'
+cat > "${appdir}/dev.beacon.BEACON.desktop" <<'DESKTOP'
 [Desktop Entry]
 Type=Application
 Name=BEACON
@@ -52,17 +67,29 @@ Categories=Development;Electronics;
 MimeType=application/x-intel-hex;text/x-hex;
 DESKTOP
 
-cat > "${app_dir}/share/mime/packages/dev.beacon.BEACON.xml" <<'MIME'
-<?xml version="1.0" encoding="UTF-8"?>
-<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
-  <mime-type type="application/x-intel-hex">
-    <comment>Intel HEX firmware</comment>
-    <glob pattern="*.hex"/>
-  </mime-type>
-</mime-info>
-MIME
+cp "${appdir}/usr/share/icons/hicolor/512x512/apps/dev.beacon.BEACON.png" "${appdir}/dev.beacon.BEACON.png"
 
-mkdir -p target/dist
-tar -czf "target/dist/BEACON-linux-${arch}.tar.gz" -C target/dist beacon
+cat > "${appdir}/AppRun" <<'APPRUN'
+#!/bin/sh
+SELF="$(readlink -f "$0")"
+HERE="${SELF%/*}"
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH:-}"
+export XDG_DATA_DIRS="${HERE}/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+exec "${HERE}/usr/bin/beacon" "$@"
+APPRUN
+chmod +x "${appdir}/AppRun"
 
-printf 'created target/dist/BEACON-linux-%s.tar.gz\n' "${arch}"
+if [[ "${arch}" == "aarch64" ]]; then
+  linuxdeploy_arch="aarch64"
+else
+  linuxdeploy_arch="x86_64"
+fi
+
+curl -fSL -o linuxdeploy "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${linuxdeploy_arch}.AppImage"
+chmod +x linuxdeploy
+
+./linuxdeploy --appdir "${appdir}" --output appimage
+
+mv BEACON-*.AppImage "target/dist/BEACON-linux-${arch}.AppImage"
+
+printf 'created target/dist/BEACON-linux-%s.AppImage\n' "${arch}"
