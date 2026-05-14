@@ -24,7 +24,7 @@ mkdir -p "${app_dir}/Contents/MacOS" "${app_dir}/Contents/Resources"
 
 cp "${binary}" "${app_dir}/Contents/MacOS/beacon"
 chmod +x "${app_dir}/Contents/MacOS/beacon"
-cp assets/fonts "${app_dir}/Contents/Resources/" -R
+cp -R assets/fonts "${app_dir}/Contents/Resources/"
 cp assets/icons/Beacon.icns "${app_dir}/Contents/Resources/Beacon.icns"
 
 cat > "${app_dir}/Contents/Info.plist" <<'PLIST'

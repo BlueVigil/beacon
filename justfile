@@ -37,19 +37,19 @@ bundle-linux-aarch64:
 bundle-linux-x86_64:
     ./scripts/bundle-linux x86_64-unknown-linux-gnu
 
-bundle-windows-aarch64:
-    pwsh ./scripts/bundle-windows.ps1 -Architecture aarch64
-
 bundle-windows-x86_64:
     pwsh ./scripts/bundle-windows.ps1 -Architecture x86_64
+
+bundle-windows-aarch64:
+    pwsh ./scripts/bundle-windows.ps1 -Architecture aarch64
 
 bundle-all:
     just bundle-mac-aarch64
     just bundle-mac-x86_64
     just bundle-linux-aarch64
     just bundle-linux-x86_64
-    just bundle-windows-aarch64
     just bundle-windows-x86_64
+    just bundle-windows-aarch64
 
 icon size="1024":
     ./scripts/render-icon.sh {{size}}
