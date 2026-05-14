@@ -48,6 +48,7 @@ impl Render for BeaconApp {
          .on_action(cx.listener(Self::upload_action))
          .on_action(cx.listener(Self::cycle_auto_mode_action))
          .on_action(cx.listener(Self::quit_action))
+         .on_drop(cx.listener(Self::drop_hex_paths))
          .child(self.title_bar())
          .child(
             div()
@@ -354,18 +355,18 @@ fn panel(
             )
             .child(
                div()
-                   .font_family(FONT_TITLE)
-                   .text_size(px(9.0))
-                   .text_color(rgb(GRAY))
-                   .child(index),
+                  .font_family(FONT_TITLE)
+                  .text_size(px(9.0))
+                  .text_color(rgb(GRAY))
+                  .child(index),
             )
             .child(
                div()
-                   .font_family(FONT_TITLE)
-                   .text_size(px(10.0))
-                   .text_color(rgb(TEXT))
-                   .font_weight(FontWeight::SEMIBOLD)
-                   .child(title),
+                  .font_family(FONT_TITLE)
+                  .text_size(px(10.0))
+                  .text_color(rgb(TEXT))
+                  .font_weight(FontWeight::SEMIBOLD)
+                  .child(title),
             ),
       )
 }
@@ -558,10 +559,10 @@ fn step_indicator(label: &str, status: ModuleStatus) -> impl IntoElement {
       .child(status_dot(status))
       .child(
          div()
-         .font_family(FONT_TITLE)
-         .text_size(px(9.0))
-         .text_color(rgb(if active { TEXT } else { TEXT_DIM }))
-         .child(label.to_string()),
+            .font_family(FONT_TITLE)
+            .text_size(px(9.0))
+            .text_color(rgb(if active { TEXT } else { TEXT_DIM }))
+            .child(label.to_string()),
       )
 }
 

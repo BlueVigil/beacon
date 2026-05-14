@@ -9,6 +9,7 @@ use std::{
    fs,
    io,
    path::PathBuf,
+   sync::mpsc,
 };
 
 use anyhow::Result;
@@ -62,61 +63,72 @@ impl AssetSource for Assets {
 }
 
 fn main() {
-   Application::new()
-      .with_assets(Assets { base: asset_root() })
-      .run(|cx: &mut App| {
-         cx.bind_keys([
-            KeyBinding::new("cmd-o", actions::LoadHex, Some("Beacon")),
-            KeyBinding::new("cmd-shift-r", actions::ScanUsb, Some("Beacon")),
-            KeyBinding::new("cmd-u", actions::Upload, Some("Beacon")),
-            KeyBinding::new("cmd-r", actions::CycleAutoMode, Some("Beacon")),
-            KeyBinding::new("cmd-q", actions::Quit, Some("Beacon")),
-            KeyBinding::new("cmd-w", actions::Quit, Some("Beacon")),
-         ]);
-         cx.set_menus(vec![
-            Menu {
-               name:  "Beacon".into(),
-               items: vec![
-                  MenuItem::os_submenu("Services", SystemMenuType::Services),
-                  MenuItem::separator(),
-                  MenuItem::action("Quit Beacon", actions::Quit),
-               ],
-            },
-            Menu {
-               name:  "Actions".into(),
-               items: vec![
-                  MenuItem::action("Load Hex", actions::LoadHex),
-                  MenuItem::action("Scan USB", actions::ScanUsb),
-                  MenuItem::separator(),
-                  MenuItem::action("Upload", actions::Upload),
-                  MenuItem::action("Cycle Auto Mode", actions::CycleAutoMode),
-               ],
-            },
-         ]);
-         load_bundled_fonts(cx).unwrap();
+   let (open_urls_sender, open_urls_receiver) = mpsc::channel();
+   let application = Application::new().with_assets(Assets { base: asset_root() });
 
-         let bounds = Bounds::centered(None, size(px(1080.0), px(900.0)), cx);
+   application.on_open_urls({
+      let open_urls_sender = open_urls_sender.clone();
+      move |urls| {
+         let _ = open_urls_sender.send(urls);
+      }
+   });
 
-         cx.open_window(
-            WindowOptions {
-               window_bounds: Some(WindowBounds::Windowed(bounds)),
-               window_min_size: Some(size(px(900.0), px(840.0))),
-               titlebar: Some(TitlebarOptions {
-                  appears_transparent: true,
-                  traffic_light_position: Some(point(px(12.0), px(10.0))),
-                  ..Default::default()
-               }),
-               window_decorations: Some(WindowDecorations::Client),
+   application.run(move |cx: &mut App| {
+      cx.bind_keys([
+         KeyBinding::new("cmd-o", actions::LoadHex, Some("Beacon")),
+         KeyBinding::new("cmd-shift-r", actions::ScanUsb, Some("Beacon")),
+         KeyBinding::new("cmd-u", actions::Upload, Some("Beacon")),
+         KeyBinding::new("cmd-r", actions::CycleAutoMode, Some("Beacon")),
+         KeyBinding::new("cmd-q", actions::Quit, Some("Beacon")),
+         KeyBinding::new("cmd-w", actions::Quit, Some("Beacon")),
+      ]);
+      cx.set_menus(vec![
+         Menu {
+            name:  "Beacon".into(),
+            items: vec![
+               MenuItem::os_submenu("Services", SystemMenuType::Services),
+               MenuItem::separator(),
+               MenuItem::action("Quit Beacon", actions::Quit),
+            ],
+         },
+         Menu {
+            name:  "Actions".into(),
+            items: vec![
+               MenuItem::action("Load Hex", actions::LoadHex),
+               MenuItem::action("Scan USB", actions::ScanUsb),
+               MenuItem::separator(),
+               MenuItem::action("Upload", actions::Upload),
+               MenuItem::action("Cycle Auto Mode", actions::CycleAutoMode),
+            ],
+         },
+      ]);
+      load_bundled_fonts(cx).unwrap();
+      for path in std::env::args().skip(1) {
+         let _ = open_urls_sender.send(vec![path]);
+      }
+
+      let bounds = Bounds::centered(None, size(px(1080.0), px(900.0)), cx);
+
+      cx.open_window(
+         WindowOptions {
+            window_bounds: Some(WindowBounds::Windowed(bounds)),
+            window_min_size: Some(size(px(900.0), px(840.0))),
+            titlebar: Some(TitlebarOptions {
+               appears_transparent: true,
+               traffic_light_position: Some(point(px(12.0), px(10.0))),
                ..Default::default()
-            },
-            |window, cx| {
-               let app = cx.new(BeaconApp::new);
-               window.focus(&app.focus_handle(cx));
-               app
-            },
-         )
-         .unwrap();
-      });
+            }),
+            window_decorations: Some(WindowDecorations::Client),
+            ..Default::default()
+         },
+         |window, cx| {
+            let app = cx.new(|cx| BeaconApp::new(cx, open_urls_receiver));
+            window.focus(&app.focus_handle(cx));
+            app
+         },
+      )
+      .unwrap();
+   });
 }
 
 fn asset_root() -> PathBuf {

@@ -1,4 +1,11 @@
-use std::path::PathBuf;
+use std::{
+   fs,
+   path::{
+      Path,
+      PathBuf,
+   },
+   sync::mpsc,
+};
 
 use gpui::{
    AsyncApp,
@@ -40,6 +47,8 @@ pub struct BeaconApp {
    _chevron_anim_task:        Task<()>,
    upload_triggered_by_auto:  bool,
    last_auto_upload_device:   Option<String>,
+   open_urls_task:            Option<Task<()>>,
+   last_hex_dir:              Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -76,8 +85,9 @@ pub enum AutoMode {
 }
 
 impl BeaconApp {
-   pub fn new(cx: &mut Context<Self>) -> Self {
+   pub fn new(cx: &mut Context<Self>, open_urls: mpsc::Receiver<Vec<String>>) -> Self {
       let expected_tycmd_path = tycmd::expected_resource_path();
+      let last_hex_dir = read_last_hex_dir();
 
       let chevron_anim_task = cx.spawn(
          async move |this: WeakEntity<BeaconApp>, cx: &mut AsyncApp| {
@@ -103,26 +113,30 @@ impl BeaconApp {
       );
 
       let mut app = Self {
-         selected_hex:             None,
-         devices:                  Vec::new(),
-         selected_device_index:    None,
-         identify_output:          None,
-         output_lines:             Vec::new(),
-         status:                   AppStatus::Idle,
-         active_task:              None,
-         tycmd:                    None,
-         expected_tycmd_path:      expected_tycmd_path.clone(),
-         blink_visible:            true,
-         chevron_tick:             0,
-         auto_mode:                AutoMode::Off,
-         focus_handle:             cx.focus_handle(),
-         chevron_anim_phase:       0,
-         blink_task:               None,
-         auto_scan_task:           None,
-         _chevron_anim_task:       chevron_anim_task,
+         selected_hex: None,
+         devices: Vec::new(),
+         selected_device_index: None,
+         identify_output: None,
+         output_lines: Vec::new(),
+         status: AppStatus::Idle,
+         active_task: None,
+         tycmd: None,
+         expected_tycmd_path: expected_tycmd_path.clone(),
+         blink_visible: true,
+         chevron_tick: 0,
+         auto_mode: AutoMode::Off,
+         focus_handle: cx.focus_handle(),
+         chevron_anim_phase: 0,
+         blink_task: None,
+         auto_scan_task: None,
+         _chevron_anim_task: chevron_anim_task,
          upload_triggered_by_auto: false,
-         last_auto_upload_device:  None,
+         last_auto_upload_device: None,
+         open_urls_task: None,
+         last_hex_dir,
       };
+
+      app.start_open_urls_task(cx, open_urls);
 
       match Tycmd::resolve() {
          Ok(tycmd) => {
@@ -154,7 +168,14 @@ impl BeaconApp {
       }
 
       self.status = AppStatus::SelectingFile;
-      self.log("choose firmware .hex");
+      if let Some(dir) = &self.last_hex_dir {
+         self.log(format!(
+            "choose firmware .hex (last directory: {})",
+            dir.display()
+         ));
+      } else {
+         self.log("choose firmware .hex");
+      }
       cx.notify();
 
       let receiver = cx.prompt_for_paths(PathPromptOptions {
@@ -198,6 +219,24 @@ impl BeaconApp {
       );
 
       self.active_task = Some(task);
+   }
+
+   pub fn drop_hex_paths(
+      &mut self,
+      paths: &gpui::ExternalPaths,
+      _window: &mut gpui::Window,
+      cx: &mut Context<Self>,
+   ) {
+      if self.is_busy() {
+         return;
+      }
+
+      if self.accept_selected_paths(paths.paths().to_vec()) {
+         self.start_identify(cx);
+      }
+
+      self.sync_chevron_phase();
+      cx.notify();
    }
 
    pub fn scan_usb_action(
@@ -633,6 +672,46 @@ impl BeaconApp {
       self.auto_scan_task = Some(task);
    }
 
+   fn start_open_urls_task(
+      &mut self,
+      cx: &mut Context<Self>,
+      receiver: mpsc::Receiver<Vec<String>>,
+   ) {
+      let task = cx.spawn(
+         async move |this: WeakEntity<BeaconApp>, cx: &mut AsyncApp| {
+            loop {
+               match receiver.try_recv() {
+                  Ok(urls) => {
+                     let paths: Vec<PathBuf> =
+                        urls.into_iter().filter_map(path_from_open_url).collect();
+                     let _ = this.update(cx, |this, cx| {
+                        if this.is_busy() {
+                           this.log("open file ignored: app is busy");
+                           return;
+                        }
+
+                        if this.accept_selected_paths(paths) {
+                           this.start_identify(cx);
+                        }
+
+                        this.sync_chevron_phase();
+                        cx.notify();
+                     });
+                  },
+                  Err(mpsc::TryRecvError::Empty) => {
+                     cx.background_executor()
+                        .timer(std::time::Duration::from_millis(200))
+                        .await;
+                  },
+                  Err(mpsc::TryRecvError::Disconnected) => break,
+               }
+            }
+         },
+      );
+
+      self.open_urls_task = Some(task);
+   }
+
    pub fn current_chevron_phase(&self) -> u8 {
       if self.can_upload()
          || matches!(self.status, AppStatus::Uploading | AppStatus::AutoWaiting)
@@ -858,6 +937,12 @@ impl BeaconApp {
       }
 
       self.selected_hex = Some(path.clone());
+      self.last_hex_dir = path.parent().map(PathBuf::from);
+      if let Some(dir) = &self.last_hex_dir
+         && let Err(error) = write_last_hex_dir(dir)
+      {
+         self.log_error(format!("could not save last firmware directory: {error}"));
+      }
       self.identify_output = None;
       self.log_success(format!("selected firmware: {}", path.display()));
       true
@@ -941,4 +1026,79 @@ fn stable_device_identity(raw_line: &str) -> String {
       .next()
       .unwrap_or(raw_line)
       .to_string()
+}
+
+fn path_from_open_url(url: String) -> Option<PathBuf> {
+   if let Some(path) = url.strip_prefix("file://") {
+      return Some(PathBuf::from(percent_decode_path(path)));
+   }
+
+   Some(PathBuf::from(url)).filter(|path| path.exists())
+}
+
+fn percent_decode_path(path: &str) -> String {
+   let bytes = path.as_bytes();
+   let mut decoded = Vec::with_capacity(bytes.len());
+   let mut index = 0;
+
+   while index < bytes.len() {
+      if bytes[index] == b'%'
+         && index + 2 < bytes.len()
+         && let Ok(hex) = std::str::from_utf8(&bytes[index + 1..index + 3])
+         && let Ok(value) = u8::from_str_radix(hex, 16)
+      {
+         decoded.push(value);
+         index += 3;
+      } else {
+         decoded.push(bytes[index]);
+         index += 1;
+      }
+   }
+
+   String::from_utf8_lossy(&decoded).into_owned()
+}
+
+fn settings_dir() -> Option<PathBuf> {
+   let home = std::env::var_os("HOME").map(PathBuf::from)?;
+
+   #[cfg(target_os = "macos")]
+   return Some(
+      home
+         .join("Library")
+         .join("Application Support")
+         .join("BEACON"),
+   );
+
+   #[cfg(target_os = "windows")]
+   return std::env::var_os("APPDATA")
+      .map(PathBuf::from)
+      .map(|path| path.join("BEACON"))
+      .or_else(|| Some(home.join("AppData").join("Roaming").join("BEACON")));
+
+   #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+   return std::env::var_os("XDG_CONFIG_HOME")
+      .map(PathBuf::from)
+      .map(|path| path.join("beacon"))
+      .or_else(|| Some(home.join(".config").join("beacon")));
+}
+
+fn last_hex_dir_file() -> Option<PathBuf> {
+   settings_dir().map(|dir| dir.join("last_hex_dir"))
+}
+
+fn read_last_hex_dir() -> Option<PathBuf> {
+   let path = last_hex_dir_file()?;
+   let dir = fs::read_to_string(path).ok()?;
+   let dir = PathBuf::from(dir.trim());
+   dir.is_dir().then_some(dir)
+}
+
+fn write_last_hex_dir(dir: &Path) -> std::io::Result<()> {
+   let Some(path) = last_hex_dir_file() else {
+      return Ok(());
+   };
+   if let Some(parent) = path.parent() {
+      fs::create_dir_all(parent)?;
+   }
+   fs::write(path, dir.to_string_lossy().as_bytes())
 }

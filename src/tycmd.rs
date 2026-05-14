@@ -40,10 +40,7 @@ impl CommandOutput {
 
 impl Tycmd {
    pub fn resolve() -> Result<Self> {
-      let candidates = [
-         packaged_arch_resource_path(),
-         dev_arch_resource_path(),
-      ];
+      let candidates = [packaged_arch_resource_path(), dev_arch_resource_path()];
 
       for path in candidates.into_iter().flatten() {
          if path.exists() {
@@ -53,8 +50,7 @@ impl Tycmd {
       }
 
       bail!(MissingTycmd {
-         expected_path: dev_arch_resource_path()
-            .unwrap_or_else(|| PathBuf::from("vendor/tycmd")),
+         expected_path: dev_arch_resource_path().unwrap_or_else(|| PathBuf::from("vendor/tycmd")),
       });
    }
 

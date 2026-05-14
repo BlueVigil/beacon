@@ -95,6 +95,21 @@ if [[ "${platform}" == "macos" ]]; then
     <string>BEACON</string>
     <key>CFBundleIconFile</key>
     <string>Beacon</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+      <dict>
+        <key>CFBundleTypeName</key>
+        <string>Intel HEX Firmware</string>
+        <key>CFBundleTypeRole</key>
+        <string>Viewer</string>
+        <key>CFBundleTypeExtensions</key>
+        <array>
+          <string>hex</string>
+        </array>
+        <key>LSHandlerRank</key>
+        <string>Alternate</string>
+      </dict>
+    </array>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleVersion</key>
@@ -114,6 +129,48 @@ else
   cp "${binary_path}" "${app_dir}/${exe_name}"
   [[ "${platform}" == "windows" ]] || chmod +x "${app_dir}/${exe_name}"
   copy_resources "${app_dir}/resources"
+  if [[ "${platform}" == "linux" ]]; then
+    mkdir -p "${app_dir}/share/applications" "${app_dir}/share/mime/packages" "${app_dir}/share/icons/hicolor/1024x1024/apps"
+    if [[ -f "assets/icons/beacon.png" ]]; then
+      cp "assets/icons/beacon.png" "${app_dir}/share/icons/hicolor/1024x1024/apps/dev.beacon.BEACON.png"
+    fi
+    cat > "${app_dir}/share/applications/dev.beacon.BEACON.desktop" <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=BEACON
+Comment=Flash Teensy firmware
+Exec=beacon %f
+Icon=dev.beacon.BEACON
+Terminal=false
+Categories=Development;Electronics;
+MimeType=application/x-intel-hex;text/x-hex;
+DESKTOP
+    cat > "${app_dir}/share/mime/packages/dev.beacon.BEACON.xml" <<'MIME'
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-intel-hex">
+    <comment>Intel HEX firmware</comment>
+    <glob pattern="*.hex"/>
+  </mime-type>
+</mime-info>
+MIME
+  elif [[ "${platform}" == "windows" ]]; then
+    cat > "${app_dir}/install-file-association.reg" <<'REG'
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Classes\.hex]
+@="BEACON.hex"
+
+[HKEY_CURRENT_USER\Software\Classes\BEACON.hex]
+@="Intel HEX Firmware"
+
+[HKEY_CURRENT_USER\Software\Classes\BEACON.hex\DefaultIcon]
+@="\"%LOCALAPPDATA%\\BEACON\\beacon.exe\",0"
+
+[HKEY_CURRENT_USER\Software\Classes\BEACON.hex\shell\open\command]
+@="\"%LOCALAPPDATA%\\BEACON\\beacon.exe\" \"%1\""
+REG
+  fi
 fi
 
 printf 'packaged %s at %s\n' "${target}" "${app_dir}"
