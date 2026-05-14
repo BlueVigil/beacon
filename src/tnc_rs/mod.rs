@@ -27,5 +27,7 @@ pub use model::{
 };
 pub use upload::{
    UploadOptions,
+   reboot_to_bootloader,
+   reset_device,
    upload_firmware,
 };

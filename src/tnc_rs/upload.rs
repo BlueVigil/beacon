@@ -315,6 +315,100 @@ impl HalfKaySettings {
    }
 }
 
+pub fn reboot_to_bootloader(board_filter: Option<&str>) -> Result<()> {
+   let api = HidApi::new()?;
+   let filter = board_filter.map(|s| s.to_string());
+   let options = UploadOptions {
+      board_filter: filter,
+      ..UploadOptions::default()
+   };
+
+   let mut found_seremu = false;
+   for info in api.device_list().filter(|info| is_teensy_seremu(info)) {
+      if !matches_filter(
+         info.serial_number(),
+         &info.path().to_string_lossy(),
+         &options,
+      ) {
+         continue;
+      }
+      found_seremu = true;
+      let device = info.open_device(&api)?;
+      device.send_feature_report(&[0, 0xA9, 0x45, 0xC2, 0x6B])?;
+   }
+
+   for port in serialport::available_ports().unwrap_or_default() {
+      let serialport::SerialPortType::UsbPort(info) = &port.port_type else {
+         continue;
+      };
+      if !is_teensy_vid_pid(info.vid, info.pid) {
+         continue;
+      }
+      if !matches_filter(info.serial_number.as_deref(), &port.port_name, &options) {
+         continue;
+      }
+
+      let mut port = serialport::new(&port.port_name, 115_200)
+         .timeout(Duration::from_millis(100))
+         .open()
+         .with_context(|| format!("failed to open {}", port.port_name))?;
+      port.set_baud_rate(134)?;
+      let _ = port.set_baud_rate(115_200);
+      return Ok(());
+   }
+
+   if !found_seremu {
+      bail!("no Teensy device found to reboot");
+   }
+
+   Ok(())
+}
+
+pub fn reset_device(board_filter: Option<&str>) -> Result<()> {
+   let api = HidApi::new()?;
+   let filter = board_filter.map(|s| s.to_string());
+   let options = UploadOptions {
+      board_filter: filter,
+      ..UploadOptions::default()
+   };
+
+   if let Some(bootloader) = open_bootloader_once(&api, &options)? {
+      let (device, model) = bootloader;
+      let settings = HalfKaySettings::for_model(model)?;
+      halfkay_send(
+         &device,
+         settings.version,
+         settings.block_size,
+         0x00FF_FFFF,
+         &[],
+         25,
+         Duration::from_millis(20),
+      )?;
+      return Ok(());
+   }
+
+   reboot_running_teensy(&api, &options)?;
+
+   loop {
+      let api = HidApi::new()?;
+      if let Some(bootloader) = open_bootloader_once(&api, &options)? {
+         let (device, model) = bootloader;
+         let settings = HalfKaySettings::for_model(model)?;
+         halfkay_send(
+            &device,
+            settings.version,
+            settings.block_size,
+            0x00FF_FFFF,
+            &[],
+            25,
+            Duration::from_millis(20),
+         )?;
+         return Ok(());
+      }
+      thread::sleep(Duration::from_millis(100));
+   }
+}
+
 fn halfkay_send(
    device: &HidDevice,
    version: u8,
