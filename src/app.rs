@@ -44,8 +44,6 @@ pub struct BeaconApp {
    blink_task:                Option<Task<()>>,
    auto_scan_task:            Option<Task<()>>,
    _chevron_anim_task:        Task<()>,
-   upload_triggered_by_auto:  bool,
-   last_auto_upload_device:   Option<String>,
    open_urls_task:            Option<Task<()>>,
    last_hex_dir:              Option<PathBuf>,
 }
@@ -75,7 +73,6 @@ pub enum AppErrorKind {
 pub enum AutoMode {
    Off,
    Wait,
-   Instant,
 }
 
 impl BeaconApp {
@@ -121,8 +118,6 @@ impl BeaconApp {
          blink_task: None,
          auto_scan_task: None,
          _chevron_anim_task: chevron_anim_task,
-         upload_triggered_by_auto: false,
-         last_auto_upload_device: None,
          open_urls_task: None,
          last_hex_dir,
       };
@@ -240,7 +235,6 @@ impl BeaconApp {
       }
 
       self.selected_device_index = Some(index);
-      self.last_auto_upload_device = None;
       self.log(format!("selected device: {}", self.devices[index].label));
       self.refresh_ready_status();
       self.sync_chevron_phase();
@@ -287,8 +281,7 @@ impl BeaconApp {
 
       self.auto_mode = match self.auto_mode {
          AutoMode::Off => AutoMode::Wait,
-         AutoMode::Wait => AutoMode::Instant,
-         AutoMode::Instant => AutoMode::Off,
+         AutoMode::Wait => AutoMode::Off,
       };
 
       match self.auto_mode {
@@ -303,22 +296,8 @@ impl BeaconApp {
                self.auto_mode = AutoMode::Off;
             }
          },
-         AutoMode::Instant => {
-            if self.can_upload() {
-               self.log("auto-instant: device present, uploading now...");
-               self.upload_triggered_by_auto = true;
-               self.remember_auto_upload_device();
-               self.do_upload(cx);
-            } else if self.selected_hex.is_some() {
-               self.log("auto-instant: armed, waiting for device...");
-            } else {
-               self.log("auto-instant: load a .hex to arm");
-               self.auto_mode = AutoMode::Off;
-            }
-         },
          AutoMode::Off => {
             self.log("auto: off");
-            self.upload_triggered_by_auto = false;
             self.blink_task = None;
             self.blink_visible = true;
             if matches!(self.status, AppStatus::Uploading | AppStatus::AutoWaiting) {
@@ -415,14 +394,7 @@ impl BeaconApp {
             let _ = this.update(cx, |this, cx| {
                match result {
                   Ok(()) => {
-                     let was_auto = this.upload_triggered_by_auto;
                      this.finish_upload();
-                     if was_auto {
-                        this.upload_triggered_by_auto = false;
-                        if this.auto_mode == AutoMode::Instant {
-                           this.log("auto-instant: waiting for next device...");
-                        }
-                     }
                   },
                   Err(error) => {
                      this.status = AppStatus::Error(AppErrorKind::Io(error.to_string()));
@@ -456,7 +428,6 @@ impl BeaconApp {
          return;
       };
 
-      self.upload_triggered_by_auto = true;
       self.status = AppStatus::AutoWaiting;
       self.blink_visible = true;
       self.log_command(format!("tnc-rs upload --wait {}", hex_path.display()));
@@ -545,7 +516,6 @@ impl BeaconApp {
                this.active_task = None;
                this.blink_task = None;
                this.blink_visible = true;
-               this.upload_triggered_by_auto = false;
                this.sync_chevron_phase();
                cx.notify();
             });
@@ -601,19 +571,6 @@ impl BeaconApp {
                      }
 
                      this.refresh_ready_status();
-
-                     if this.auto_mode == AutoMode::Instant
-                        && !this.devices.is_empty()
-                        && this.selected_hex.is_some()
-                        && !this.is_busy()
-                        && this.active_task.is_none()
-                        && this.auto_upload_device_changed()
-                     {
-                        this.log("auto-instant: device detected, uploading...");
-                        this.upload_triggered_by_auto = true;
-                        this.remember_auto_upload_device();
-                        this.do_upload(cx);
-                     }
 
                      if this.auto_mode == AutoMode::Wait
                         && !this.devices.is_empty()
@@ -705,30 +662,6 @@ impl BeaconApp {
          && self.selected_device_index.is_some()
          && !matches!(self.status, AppStatus::AutoWaiting)
          && !self.is_busy()
-   }
-
-   fn auto_upload_device_changed(&self) -> bool {
-      self
-         .current_auto_upload_device()
-         .is_some_and(|device| self.last_auto_upload_device.as_deref() != Some(device.as_str()))
-   }
-
-   fn remember_auto_upload_device(&mut self) {
-      self.last_auto_upload_device = self.current_auto_upload_device();
-   }
-
-   fn current_auto_upload_device(&self) -> Option<String> {
-      self
-         .selected_device_index
-         .and_then(|index| self.devices.get(index))
-         .or_else(|| {
-            if self.devices.len() == 1 {
-               self.devices.first()
-            } else {
-               None
-            }
-         })
-         .map(|device| stable_device_identity(&device.raw_line))
    }
 
    fn start_scan(&mut self, cx: &mut Context<Self>) {
@@ -916,14 +849,6 @@ impl Focusable for BeaconApp {
    fn focus_handle(&self, _cx: &gpui::App) -> FocusHandle {
       self.focus_handle.clone()
    }
-}
-
-fn stable_device_identity(raw_line: &str) -> String {
-   raw_line
-      .split_whitespace()
-      .next()
-      .unwrap_or(raw_line)
-      .to_string()
 }
 
 fn path_from_open_url(url: String) -> Option<PathBuf> {

@@ -271,7 +271,6 @@ impl BeaconApp {
                action_button(
                   match self.auto_mode {
                      AutoMode::Wait => "AUTO: WAIT",
-                     AutoMode::Instant => "AUTO: INSTANT",
                      AutoMode::Off => "AUTO: OFF",
                   },
                   auto_disabled,
@@ -742,7 +741,6 @@ fn device_status(app: &BeaconApp) -> String {
 fn upload_status(app: &BeaconApp) -> &'static str {
    match app.auto_mode {
       AutoMode::Wait => "AUTO-WAIT",
-      AutoMode::Instant => "AUTO-INSTANT",
       AutoMode::Off => {
          if app.can_upload() {
             "ARMED"
