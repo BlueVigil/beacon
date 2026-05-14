@@ -49,8 +49,9 @@ mkdir -p "${appdir}/usr/bin" "${appdir}/usr/lib" "${appdir}/usr/share"
 
 cp "${binary}" "${appdir}/usr/bin/beacon"
 chmod +x "${appdir}/usr/bin/beacon"
-cp -R assets/fonts "${appdir}/usr/lib/assets/fonts"
-cp -R assets/icons "${appdir}/usr/lib/assets/icons"
+mkdir -p "${appdir}/usr/lib/assets"
+cp -R assets/fonts "${appdir}/usr/lib/assets/"
+cp -R assets/icons "${appdir}/usr/lib/assets/"
 
 mkdir -p "${appdir}/usr/share/applications" "${appdir}/usr/share/icons/hicolor/512x512/apps"
 cp assets/icons/beacon.png "${appdir}/usr/share/icons/hicolor/512x512/apps/dev.beacon.BEACON.png"

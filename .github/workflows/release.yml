@@ -100,7 +100,7 @@ jobs:
         run: |
           choco install llvm -y
           "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          clang --version
+          & "C:\Program Files\LLVM\bin\clang.exe" --version
 
       - name: Add Rust ARM64 target
         if: matrix.name == 'windows-aarch64'
