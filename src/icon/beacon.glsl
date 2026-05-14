@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 #ifdef GL_ES
 precision highp float;
 #endif

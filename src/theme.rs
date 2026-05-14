@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 pub const BG: u32 = 0x222222;
 
 pub const ACCENT: u32 = 0xFFA234;

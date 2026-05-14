@@ -1,7 +1,9 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 mod actions;
 mod app;
 mod theme;
-mod tycmd;
+mod tnc_rs;
 mod ui;
 
 use std::{

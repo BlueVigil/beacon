@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 use gpui::{
    Action,
    AnyElement,
@@ -247,7 +249,7 @@ impl BeaconApp {
 
    fn upload_panel(&self, _cx: &mut Context<Self>) -> impl IntoElement {
       let can_upload = self.can_upload();
-      let can_auto = self.tycmd.is_some() && self.selected_hex.is_some();
+      let can_auto = self.selected_hex.is_some();
       let auto_disabled = self.is_busy() || (self.auto_mode == AutoMode::Off && !can_auto);
       panel(
          "[03]",
@@ -744,8 +746,6 @@ fn upload_status(app: &BeaconApp) -> &'static str {
       AutoMode::Off => {
          if app.can_upload() {
             "ARMED"
-         } else if app.tycmd.is_none() {
-            "TYCMD MISSING"
          } else if app.selected_hex.is_none() {
             "SELECT HEX"
          } else if app.selected_device_index.is_none() {

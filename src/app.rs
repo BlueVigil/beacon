@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 use std::{
    fs,
    path::{
@@ -19,24 +21,21 @@ use gpui::{
 
 use crate::{
    actions,
-   tycmd::{
+   tnc_rs::{
       self,
-      CommandOutput,
-      TeensyDevice,
-      Tycmd,
+      Device,
+      UploadOptions,
    },
 };
 
 pub struct BeaconApp {
    pub selected_hex:          Option<PathBuf>,
-   pub devices:               Vec<TeensyDevice>,
+   pub devices:               Vec<Device>,
    pub selected_device_index: Option<usize>,
    pub identify_output:       Option<String>,
    pub output_lines:          Vec<String>,
    pub status:                AppStatus,
    pub active_task:           Option<Task<()>>,
-   pub tycmd:                 Option<Tycmd>,
-   pub expected_tycmd_path:   PathBuf,
    pub blink_visible:         bool,
    pub chevron_tick:          u32,
    pub auto_mode:             AutoMode,
@@ -66,14 +65,9 @@ pub enum AppStatus {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AppErrorKind {
-   MissingTycmd(PathBuf),
    InvalidHexFile(PathBuf),
    NoDevice,
    MultipleDevicesNoSelection,
-   CommandFailed {
-      command:   String,
-      exit_code: Option<i32>,
-   },
    Io(String),
 }
 
@@ -86,7 +80,6 @@ pub enum AutoMode {
 
 impl BeaconApp {
    pub fn new(cx: &mut Context<Self>, open_urls: mpsc::Receiver<Vec<String>>) -> Self {
-      let expected_tycmd_path = tycmd::expected_resource_path();
       let last_hex_dir = read_last_hex_dir();
 
       let chevron_anim_task = cx.spawn(
@@ -120,8 +113,6 @@ impl BeaconApp {
          output_lines: Vec::new(),
          status: AppStatus::Idle,
          active_task: None,
-         tycmd: None,
-         expected_tycmd_path: expected_tycmd_path.clone(),
          blink_visible: true,
          chevron_tick: 0,
          auto_mode: AutoMode::Off,
@@ -137,18 +128,8 @@ impl BeaconApp {
       };
 
       app.start_open_urls_task(cx, open_urls);
-
-      match Tycmd::resolve() {
-         Ok(tycmd) => {
-            app.log(format!("tycmd sidecar: {}", tycmd.executable().display()));
-            app.tycmd = Some(tycmd);
-            app.start_auto_scan(cx);
-         },
-         Err(error) => {
-            app.log_error(format!("missing tycmd sidecar: {error}"));
-            app.status = AppStatus::Error(AppErrorKind::MissingTycmd(expected_tycmd_path));
-         },
-      }
+      app.log("tnc-rs native backend active");
+      app.start_auto_scan(cx);
 
       app
    }
@@ -350,14 +331,6 @@ impl BeaconApp {
    }
 
    fn do_upload(&mut self, cx: &mut Context<Self>) {
-      let Some(tycmd) = self.tycmd.clone() else {
-         self.status =
-            AppStatus::Error(AppErrorKind::MissingTycmd(self.expected_tycmd_path.clone()));
-         self.log_error("cannot upload: bundled tycmd is missing");
-         cx.notify();
-         return;
-      };
-
       let Some(hex_path) = self.selected_hex.clone() else {
          self.status = AppStatus::Error(AppErrorKind::InvalidHexFile(PathBuf::from(
             "NO HEX SELECTED",
@@ -376,7 +349,7 @@ impl BeaconApp {
 
       self.status = AppStatus::Uploading;
       self.blink_visible = true;
-      self.log_command(format!("tycmd upload {}", hex_path.display()));
+      self.log_command(format!("tnc-rs upload {}", hex_path.display()));
       cx.notify();
 
       let blink_task = cx.spawn(
@@ -417,16 +390,33 @@ impl BeaconApp {
 
       let task = cx.spawn(
          async move |this: WeakEntity<BeaconApp>, cx: &mut AsyncApp| {
-            let result: anyhow::Result<CommandOutput> = cx
-               .background_executor()
-               .spawn(async move { tycmd.upload(&hex_path) })
-               .await;
+            let (sender, receiver) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+               let _ = sender.send(tnc_rs::upload_firmware(
+                  &hex_path,
+                  &UploadOptions::default(),
+               ));
+            });
+
+            let result: anyhow::Result<()> = loop {
+               match receiver.try_recv() {
+                  Ok(result) => break result,
+                  Err(std::sync::mpsc::TryRecvError::Empty) => {
+                     cx.background_executor()
+                        .timer(std::time::Duration::from_millis(100))
+                        .await;
+                  },
+                  Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                     break Err(anyhow::anyhow!("upload thread disconnected"));
+                  },
+               }
+            };
 
             let _ = this.update(cx, |this, cx| {
                match result {
-                  Ok(output) => {
+                  Ok(()) => {
                      let was_auto = this.upload_triggered_by_auto;
-                     this.finish_upload(output);
+                     this.finish_upload();
                      if was_auto {
                         this.upload_triggered_by_auto = false;
                         if this.auto_mode == AutoMode::Instant {
@@ -462,9 +452,6 @@ impl BeaconApp {
    }
 
    fn start_auto_wait(&mut self, cx: &mut Context<Self>) {
-      let Some(tycmd) = self.tycmd.clone() else {
-         return;
-      };
       let Some(hex_path) = self.selected_hex.clone() else {
          return;
       };
@@ -472,7 +459,7 @@ impl BeaconApp {
       self.upload_triggered_by_auto = true;
       self.status = AppStatus::AutoWaiting;
       self.blink_visible = true;
-      self.log_command(format!("tycmd upload --wait {}", hex_path.display()));
+      self.log_command(format!("tnc-rs upload --wait {}", hex_path.display()));
       cx.notify();
 
       let blink_task = cx.spawn(
@@ -516,10 +503,14 @@ impl BeaconApp {
             let (sender, receiver) = std::sync::mpsc::channel();
 
             std::thread::spawn(move || {
-               let _ = sender.send(tycmd.upload_wait(&hex_path));
+               let options = UploadOptions {
+                  wait: true,
+                  ..UploadOptions::default()
+               };
+               let _ = sender.send(tnc_rs::upload_firmware(&hex_path, &options));
             });
 
-            let result: anyhow::Result<CommandOutput> = loop {
+            let result: anyhow::Result<()> = loop {
                match receiver.try_recv() {
                   Ok(result) => break result,
                   Err(std::sync::mpsc::TryRecvError::Empty) => {
@@ -537,18 +528,9 @@ impl BeaconApp {
 
             let _ = this.update(cx, |this, cx| {
                match result {
-                  Ok(output) => {
-                     this.append_command_output(&output);
-                     if output.is_success() {
-                        this.status = AppStatus::Success;
-                        this.log_success("auto-wait: upload succeeded");
-                     } else {
-                        this.status = AppStatus::Error(AppErrorKind::CommandFailed {
-                           command:   "tycmd upload --wait".to_string(),
-                           exit_code: output.status_code,
-                        });
-                        this.log_error(command_failure_line("tycmd upload --wait", &output));
-                     }
+                  Ok(()) => {
+                     this.status = AppStatus::Success;
+                     this.log_success("auto-wait: upload succeeded");
                   },
                   Err(error) => {
                      this.status = AppStatus::Error(AppErrorKind::Io(error.to_string()));
@@ -574,10 +556,6 @@ impl BeaconApp {
    }
 
    fn start_auto_scan(&mut self, cx: &mut Context<Self>) {
-      let Some(tycmd) = self.tycmd.clone() else {
-         return;
-      };
-
       let task = cx.spawn(
          async move |this: WeakEntity<BeaconApp>, cx: &mut AsyncApp| {
             loop {
@@ -585,25 +563,14 @@ impl BeaconApp {
                   .timer(std::time::Duration::from_secs(1))
                   .await;
 
-               let result: anyhow::Result<CommandOutput> = cx
-                  .background_executor()
-                  .spawn({
-                     let tycmd = tycmd.clone();
-                     async move { tycmd.list() }
-                  })
-                  .await;
+               let result = tnc_rs::list_devices();
 
                if this
                   .update(cx, |this, cx| {
-                     let Ok(output) = result else {
+                     let Ok(devices) = result else {
+                        this.log_error(format!("scan failed: {}", result.unwrap_err()));
                         return;
                      };
-
-                     if !output.is_success() {
-                        return;
-                     }
-
-                     let devices = tycmd::parse_devices(&output.stdout);
                      let old_lines: Vec<String> =
                         this.devices.iter().map(|d| d.raw_line.clone()).collect();
                      let new_lines: Vec<String> =
@@ -734,8 +701,7 @@ impl BeaconApp {
    }
 
    pub fn can_upload(&self) -> bool {
-      self.tycmd.is_some()
-         && self.selected_hex.is_some()
+      self.selected_hex.is_some()
          && self.selected_device_index.is_some()
          && !matches!(self.status, AppStatus::AutoWaiting)
          && !self.is_busy()
@@ -770,35 +736,24 @@ impl BeaconApp {
          return;
       }
 
-      let Some(tycmd) = self.tycmd.clone() else {
-         self.status =
-            AppStatus::Error(AppErrorKind::MissingTycmd(self.expected_tycmd_path.clone()));
-         self.log_error("cannot scan: bundled tycmd is missing");
-         cx.notify();
-         return;
-      };
-
       self.status = AppStatus::Detecting;
       self.devices.clear();
       self.selected_device_index = None;
-      self.log_command("tycmd list");
+      self.log_command("tnc-rs list");
       cx.notify();
 
       let task = cx.spawn(
          async move |this: WeakEntity<BeaconApp>, cx: &mut AsyncApp| {
-            let result: anyhow::Result<CommandOutput> = cx
-               .background_executor()
-               .spawn(async move { tycmd.list() })
-               .await;
+            let result = tnc_rs::list_devices();
 
             let _ = this.update(cx, |this, cx| {
                this.active_task = None;
 
                match result {
-                  Ok(output) => this.finish_scan(output),
+                  Ok(devices) => this.finish_scan(devices),
                   Err(error) => {
                      this.status = AppStatus::Error(AppErrorKind::Io(error.to_string()));
-                     this.log_error(format!("scan failed before command completed: {error}"));
+                     this.log_error(format!("scan failed: {error}"));
                   },
                }
 
@@ -811,19 +766,8 @@ impl BeaconApp {
       self.active_task = Some(task);
    }
 
-   fn finish_scan(&mut self, output: CommandOutput) {
-      self.append_command_output(&output);
-
-      if !output.is_success() {
-         self.status = AppStatus::Error(AppErrorKind::CommandFailed {
-            command:   "tycmd list".to_string(),
-            exit_code: output.status_code,
-         });
-         self.log_error(command_failure_line("tycmd list", &output));
-         return;
-      }
-
-      self.devices = tycmd::parse_devices(&output.stdout);
+   fn finish_scan(&mut self, devices: Vec<Device>) {
+      self.devices = devices;
 
       match self.devices.len() {
          0 => {
@@ -847,11 +791,6 @@ impl BeaconApp {
    }
 
    fn start_identify(&mut self, cx: &mut Context<Self>) {
-      let Some(tycmd) = self.tycmd.clone() else {
-         self.refresh_ready_status();
-         return;
-      };
-
       let Some(hex_path) = self.selected_hex.clone() else {
          self.refresh_ready_status();
          return;
@@ -859,19 +798,19 @@ impl BeaconApp {
 
       self.status = AppStatus::Identifying;
       self.identify_output = Some("checking firmware file...".to_string());
-      self.log_command(format!("tycmd identify {}", hex_path.display()));
+      self.log_command(format!("tnc-rs identify {}", hex_path.display()));
       cx.notify();
 
       let task = cx.spawn(
          async move |this: WeakEntity<BeaconApp>, cx: &mut AsyncApp| {
-            let result: anyhow::Result<CommandOutput> = cx
+            let result = cx
                .background_executor()
-               .spawn(async move { tycmd.identify(&hex_path) })
+               .spawn(async move { tnc_rs::identify_firmware_file(&hex_path) })
                .await;
 
             let _ = this.update(cx, |this, cx| {
                match result {
-                  Ok(output) => this.finish_identify(output),
+                  Ok(models) => this.finish_identify(models),
                   Err(error) => {
                      this.identify_output = Some(format!("identify failed: {error}"));
                      this.log_error(format!("identify failed before command completed: {error}"));
@@ -889,38 +828,24 @@ impl BeaconApp {
       self.active_task = Some(task);
    }
 
-   fn finish_identify(&mut self, output: CommandOutput) {
-      self.append_command_output(&output);
-
-      let combined = combined_output(&output);
-      self.identify_output = Some(if combined.trim().is_empty() {
-         "identify completed with no output".to_string()
+   fn finish_identify(&mut self, models: Vec<tnc_rs::Model>) {
+      let output = if models.is_empty() {
+         "Unknown".to_string()
       } else {
-         combined
-      });
-
-      if output.is_success() {
-         self.log("identify complete");
-      } else {
-         self.log_error(command_failure_line("tycmd identify", &output));
-      }
-
+         models
+            .iter()
+            .map(|model| model.info().name)
+            .collect::<Vec<_>>()
+            .join(", ")
+      };
+      self.identify_output = Some(output.clone());
+      self.log(format!("identify complete: {output}"));
       self.refresh_ready_status();
    }
 
-   fn finish_upload(&mut self, output: CommandOutput) {
-      self.append_command_output(&output);
-
-      if output.is_success() {
-         self.status = AppStatus::Success;
-         self.log_success("upload succeeded");
-      } else {
-         self.status = AppStatus::Error(AppErrorKind::CommandFailed {
-            command:   "tycmd upload".to_string(),
-            exit_code: output.status_code,
-         });
-         self.log_error(command_failure_line("tycmd upload", &output));
-      }
+   fn finish_upload(&mut self) {
+      self.status = AppStatus::Success;
+      self.log_success("upload succeeded");
    }
 
    fn accept_selected_paths(&mut self, paths: Vec<PathBuf>) -> bool {
@@ -930,7 +855,7 @@ impl BeaconApp {
          return false;
       };
 
-      if !tycmd::is_hex_file(&path) {
+      if !tnc_rs::is_hex_file(&path) {
          self.status = AppStatus::Error(AppErrorKind::InvalidHexFile(path.clone()));
          self.log_error(format!("rejected non-hex file: {}", path.display()));
          return false;
@@ -949,19 +874,11 @@ impl BeaconApp {
    }
 
    fn refresh_ready_status(&mut self) {
-      if self.tycmd.is_none() {
-         self.status =
-            AppStatus::Error(AppErrorKind::MissingTycmd(self.expected_tycmd_path.clone()));
-      } else if self.selected_hex.is_some() && self.selected_device_index.is_some() {
+      if self.selected_hex.is_some() && self.selected_device_index.is_some() {
          self.status = AppStatus::Ready;
       } else {
          self.status = AppStatus::Idle;
       }
-   }
-
-   fn append_command_output(&mut self, output: &CommandOutput) {
-      append_prefixed_lines(&mut self.output_lines, "OUT", &output.stdout);
-      append_prefixed_lines(&mut self.output_lines, "ERR", &output.stderr);
    }
 
    fn log(&mut self, line: impl Into<String>) {
@@ -999,25 +916,6 @@ impl Focusable for BeaconApp {
    fn focus_handle(&self, _cx: &gpui::App) -> FocusHandle {
       self.focus_handle.clone()
    }
-}
-
-fn append_prefixed_lines(lines: &mut Vec<String>, prefix: &str, output: &str) {
-   for line in output.lines() {
-      lines.push(format!("{prefix} {line}"));
-   }
-}
-
-fn combined_output(output: &CommandOutput) -> String {
-   match (output.stdout.trim(), output.stderr.trim()) {
-      ("", "") => String::new(),
-      (stdout, "") => stdout.to_string(),
-      ("", stderr) => stderr.to_string(),
-      (stdout, stderr) => format!("{stdout}\n{stderr}"),
-   }
-}
-
-fn command_failure_line(command: &str, output: &CommandOutput) -> String {
-   format!("{command} failed with exit {:?}", output.status_code)
 }
 
 fn stable_device_identity(raw_line: &str) -> String {

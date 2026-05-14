@@ -2,7 +2,10 @@
 name    = "beacon"
 version = "0.1.0"
 edition = "2024"
+license = "AGPL-3.0-only"
 
 [dependencies]
 anyhow = "1"
 gpui = { package = "gpui-ce", version = "0.3.3" }
+hidapi = "2"
+serialport = "4"

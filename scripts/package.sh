@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+
 set -euo pipefail
 
 target="${1:?usage: scripts/package.sh <target-triple>}"
@@ -11,15 +13,12 @@ case "${target}" in
   *windows*)
     platform="windows"
     exe_name="beacon.exe"
-    tycmd_name="tycmd.exe"
     ;;
   *apple-darwin*)
     platform="macos"
-    tycmd_name="tycmd"
     ;;
   *linux*)
     platform="linux"
-    tycmd_name="tycmd"
     ;;
   *)
     printf 'unsupported target: %s\n' "${target}" >&2
@@ -37,12 +36,6 @@ case "${target}" in
     ;;
 esac
 
-case "${arch}" in
-  aarch64|arm64) arch_name="arm64" ;;
-  x86_64) arch_name="x86_64" ;;
-  i686) arch_name="i686" ;;
-esac
-
 RUSTC="$(rustup which --toolchain nightly rustc)" rustup run nightly cargo build --release --target "${target}"
 
 rm -rf "${package_root}"
@@ -56,19 +49,8 @@ fi
 
 copy_resources() {
   local destination="$1"
-  local combined_dir="${platform}-${arch_name}"
   mkdir -p "${destination}"
   cp -R assets "${destination}/assets"
-  mkdir -p "${destination}/tycmd/${combined_dir}"
-
-  if [[ -f "vendor/tycmd/${combined_dir}/${tycmd_name}" ]]; then
-    cp "vendor/tycmd/${combined_dir}/${tycmd_name}" "${destination}/tycmd/${combined_dir}/${tycmd_name}"
-  fi
-
-  if [[ "${platform}" != "windows" ]]; then
-    chmod -R u+rwX "${destination}/tycmd" || true
-    find "${destination}/tycmd" -type f -name "tycmd" -exec chmod +x {} \;
-  fi
 }
 
 if [[ "${platform}" == "macos" ]]; then
