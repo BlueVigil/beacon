@@ -56,18 +56,42 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+
           $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe"
-          $installPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools"
-          & $installer modify `
-            --installPath "$installPath" `
-            --quiet `
-            --norestart `
-            --nocache `
-            --add Microsoft.VisualStudio.Workload.VCTools `
-            --add Microsoft.VisualStudio.Component.VC.14.44.17.14.ARM64 `
-            --add Microsoft.VisualStudio.Component.Windows11SDK.26100
-          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
-            throw "VS Installer failed with exit code $LASTEXITCODE"
+          if (-not (Test-Path $installer)) {
+            Write-Host "vs_installer.exe not found at $installer"
+            Write-Host "Searching for it..."
+            $installer = Get-ChildItem -Path "C:\" -Recurse -Filter "vs_installer.exe" -ErrorAction SilentlyContinue |
+              Select-Object -First 1 -ExpandProperty FullName
+            if (-not $installer) {
+              throw "Could not find vs_installer.exe"
+            }
+          }
+
+          $installPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath -format value 2>$null
+
+          if (-not $installPath) {
+            $installPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools"
+          }
+
+          Write-Host "Installer: $installer"
+          Write-Host "Install path: $installPath"
+
+          $proc = Start-Process -FilePath $installer -ArgumentList @(
+            "modify",
+            "--installPath", "`"$installPath`"",
+            "--quiet", "--norestart", "--nocache",
+            "--add", "Microsoft.VisualStudio.Workload.VCTools",
+            "--add", "Microsoft.VisualStudio.Component.VC.14.44.17.14.ARM64",
+            "--add", "Microsoft.VisualStudio.Component.Windows11SDK.26100"
+          ) -Wait -PassThru -NoNewWindow
+
+          Write-Host "Installer exit code: $($proc.ExitCode)"
+
+          if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
+            throw "VS Installer failed with exit code $($proc.ExitCode)"
           }
 
       - name: Install LLVM for ARM64 assembly
