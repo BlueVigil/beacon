@@ -110,6 +110,7 @@ vec3 normalAt(vec3 p) {
 void main() {
    vec2 uv = (gl_FragCoord.xy * 2.0 - u_resolution.xy) / min(u_resolution.x, u_resolution.y);
    uv *= 0.88;
+   vec2 designUv = Rot(PI / 4.0) * uv / 1.28;
 
    float grain = hash(floor(gl_FragCoord.xy * 0.45));
    vec3 paper = vec3(0.72, 0.71, 0.67) + (grain - 0.5) * 0.035;
@@ -117,7 +118,7 @@ void main() {
    vec3 color = paper;
 
    vec3 ro = vec3(6.0, 0.0, 0.0);
-   vec3 rd = normalize(vec3(-1.35, uv.y, uv.x));
+   vec3 rd = normalize(vec3(-1.35, designUv.y, designUv.x));
 
    float distanceMarched = 0.0;
    float distToShape = 0.0;
@@ -155,8 +156,8 @@ void main() {
       color = ink * lightIntensity; 
    }
 
-   float center = length(uv);
-   float diode = smoothstep(0.090, 0.030, abs(uv.x) + abs(uv.y));
+   float center = length(designUv);
+   float diode = smoothstep(0.090, 0.030, abs(designUv.x) + abs(designUv.y));
    float glow = smoothstep(0.24, 0.0, center) * 0.18;
    color = mix(color, vec3(0.94, 0.08, 0.07), glow);
    color = mix(color, vec3(0.98, 0.10, 0.09), diode);
