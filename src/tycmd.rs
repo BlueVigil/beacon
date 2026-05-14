@@ -42,9 +42,7 @@ impl Tycmd {
    pub fn resolve() -> Result<Self> {
       let candidates = [
          packaged_arch_resource_path(),
-         packaged_flat_resource_path(),
          dev_arch_resource_path(),
-         dev_flat_resource_path(),
       ];
 
       for path in candidates.into_iter().flatten() {
@@ -56,7 +54,7 @@ impl Tycmd {
 
       bail!(MissingTycmd {
          expected_path: dev_arch_resource_path()
-            .unwrap_or_else(|| PathBuf::from("resources/tycmd")),
+            .unwrap_or_else(|| PathBuf::from("vendor/tycmd")),
       });
    }
 
@@ -150,10 +148,9 @@ pub fn is_hex_file(path: &Path) -> bool {
 
 pub fn expected_resource_path() -> PathBuf {
    dev_arch_resource_path().unwrap_or_else(|| {
-      PathBuf::from("resources")
+      PathBuf::from("vendor")
          .join("tycmd")
-         .join(platform_directory())
-         .join(architecture_directory())
+         .join(platform_arch_directory())
          .join(tycmd_resource_name())
    })
 }
@@ -162,45 +159,28 @@ pub fn tycmd_resource_name() -> &'static str {
    if cfg!(windows) { "tycmd.exe" } else { "tycmd" }
 }
 
-fn platform_directory() -> &'static str {
-   if cfg!(target_os = "macos") {
-      "macos"
-   } else if cfg!(target_os = "windows") {
-      "windows"
-   } else {
-      "linux"
-   }
-}
-
-fn architecture_directory() -> &'static str {
-   match std::env::consts::ARCH {
-      "aarch64" => "aarch64",
-      "arm64" => "aarch64",
-      "x86" => "i686",
-      "x86_64" => "x86_64",
-      _ => std::env::consts::ARCH,
+fn platform_arch_directory() -> &'static str {
+   match (std::env::consts::OS, std::env::consts::ARCH) {
+      ("macos", "aarch64" | "arm64") => "macos-arm64",
+      ("macos", "x86_64") => "macos-x86_64",
+      ("windows", "aarch64" | "arm64") => "windows-arm64",
+      ("windows", "x86_64") => "windows-x86_64",
+      ("linux", "aarch64" | "arm64") => "linux-arm64",
+      ("linux", "x86_64") => "linux-x86_64",
+      _ => "unknown",
    }
 }
 
 fn resource_root() -> PathBuf {
    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-      .join("resources")
+      .join("vendor")
       .join("tycmd")
 }
 
 fn dev_arch_resource_path() -> Option<PathBuf> {
    Some(
       resource_root()
-         .join(platform_directory())
-         .join(architecture_directory())
-         .join(tycmd_resource_name()),
-   )
-}
-
-fn dev_flat_resource_path() -> Option<PathBuf> {
-   Some(
-      resource_root()
-         .join(platform_directory())
+         .join(platform_arch_directory())
          .join(tycmd_resource_name()),
    )
 }
@@ -225,16 +205,7 @@ fn packaged_resource_root() -> Option<PathBuf> {
 fn packaged_arch_resource_path() -> Option<PathBuf> {
    Some(
       packaged_resource_root()?
-         .join(platform_directory())
-         .join(architecture_directory())
-         .join(tycmd_resource_name()),
-   )
-}
-
-fn packaged_flat_resource_path() -> Option<PathBuf> {
-   Some(
-      packaged_resource_root()?
-         .join(platform_directory())
+         .join(platform_arch_directory())
          .join(tycmd_resource_name()),
    )
 }

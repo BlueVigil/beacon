@@ -1,0 +1,13 @@
+*
+!.gitignore
+
+# DIRECTORIES
+!**/
+
+# TYCMD SIDECARS
+!tycmd/macos-arm64/tycmd
+!tycmd/macos-x86_64/tycmd
+!tycmd/linux-arm64/tycmd
+!tycmd/linux-x86_64/tycmd
+!tycmd/windows-arm64/tycmd.exe
+!tycmd/windows-x86_64/tycmd.exe

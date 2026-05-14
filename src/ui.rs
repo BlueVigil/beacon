@@ -133,7 +133,7 @@ impl BeaconApp {
                      .text_size(px(20.0))
                      .text_color(rgb(PHOSPHOR))
                      .font_weight(FontWeight::BOLD)
-                     .pt(px(7.5))
+                     .pt(px(3.0))
                      .child("BEACON"),
                )
                .child(
@@ -354,18 +354,18 @@ fn panel(
             )
             .child(
                div()
-                  .font_family(FONT_MONO)
-                  .text_size(px(9.0))
-                  .text_color(rgb(GRAY))
-                  .child(index),
+                   .font_family(FONT_TITLE)
+                   .text_size(px(9.0))
+                   .text_color(rgb(GRAY))
+                   .child(index),
             )
             .child(
                div()
-                  .font_family(FONT_MONO)
-                  .text_size(px(10.0))
-                  .text_color(rgb(TEXT))
-                  .font_weight(FontWeight::SEMIBOLD)
-                  .child(title),
+                   .font_family(FONT_TITLE)
+                   .text_size(px(10.0))
+                   .text_color(rgb(TEXT))
+                   .font_weight(FontWeight::SEMIBOLD)
+                   .child(title),
             ),
       )
 }
@@ -558,11 +558,10 @@ fn step_indicator(label: &str, status: ModuleStatus) -> impl IntoElement {
       .child(status_dot(status))
       .child(
          div()
-            .font_family(FONT_MONO)
-            .text_size(px(9.0))
-            .text_color(rgb(if active { TEXT } else { TEXT_DIM }))
-            .pt(px(2.0))
-            .child(label.to_string()),
+         .font_family(FONT_TITLE)
+         .text_size(px(9.0))
+         .text_color(rgb(if active { TEXT } else { TEXT_DIM }))
+         .child(label.to_string()),
       )
 }
 
@@ -570,7 +569,7 @@ fn step_chevron(next_status: ModuleStatus) -> impl IntoElement {
    let active = matches!(next_status, ModuleStatus::Next | ModuleStatus::Done);
 
    div()
-      .font_family(FONT_MONO)
+      .font_family(FONT_TITLE)
       .text_size(px(13.0))
       .text_color(rgb(if active { PHOSPHOR_DIM } else { BORDER }))
       .child("›")

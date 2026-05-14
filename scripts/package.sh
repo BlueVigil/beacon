@@ -37,6 +37,12 @@ case "${target}" in
     ;;
 esac
 
+case "${arch}" in
+  aarch64|arm64) arch_name="arm64" ;;
+  x86_64) arch_name="x86_64" ;;
+  i686) arch_name="i686" ;;
+esac
+
 RUSTC="$(rustup which --toolchain nightly rustc)" rustup run nightly cargo build --release --target "${target}"
 
 rm -rf "${package_root}"
@@ -50,17 +56,13 @@ fi
 
 copy_resources() {
   local destination="$1"
+  local combined_dir="${platform}-${arch_name}"
   mkdir -p "${destination}"
   cp -R assets "${destination}/assets"
-  mkdir -p "${destination}/tycmd/${platform}"
+  mkdir -p "${destination}/tycmd/${combined_dir}"
 
-  if [[ -d "resources/tycmd/${platform}/${arch}" ]]; then
-    mkdir -p "${destination}/tycmd/${platform}/${arch}"
-    cp -R "resources/tycmd/${platform}/${arch}/." "${destination}/tycmd/${platform}/${arch}/"
-  fi
-
-  if [[ -f "resources/tycmd/${platform}/${tycmd_name}" ]]; then
-    cp "resources/tycmd/${platform}/${tycmd_name}" "${destination}/tycmd/${platform}/${tycmd_name}"
+  if [[ -f "vendor/tycmd/${combined_dir}/${tycmd_name}" ]]; then
+    cp "vendor/tycmd/${combined_dir}/${tycmd_name}" "${destination}/tycmd/${combined_dir}/${tycmd_name}"
   fi
 
   if [[ "${platform}" != "windows" ]]; then
