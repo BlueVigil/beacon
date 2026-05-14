@@ -72,7 +72,13 @@ cat > "${app_dir}/Contents/Info.plist" <<'PLIST'
 PLIST
 
 mkdir -p target/dist
-hdiutil create -volname BEACON -srcfolder "${app_dir}" -ov -format UDZO \
-  "target/dist/BEACON-macos-${arch}.dmg"
+deno run --allow-all npm:create-dmg \
+  --overwrite \
+  --dmg-title "BEACON" \
+  "${app_dir}" \
+  target/dist/ \
+  || true
+
+mv target/dist/BEACON-*.dmg "target/dist/BEACON-macos-${arch}.dmg"
 
 printf 'created target/dist/BEACON-macos-%s.dmg\n' "${arch}"
