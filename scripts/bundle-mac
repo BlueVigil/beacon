@@ -24,8 +24,10 @@ mkdir -p "${app_dir}/Contents/MacOS" "${app_dir}/Contents/Resources"
 
 cp "${binary}" "${app_dir}/Contents/MacOS/beacon"
 chmod +x "${app_dir}/Contents/MacOS/beacon"
-cp -R assets "${app_dir}/Contents/Resources/assets"
-cp assets/icons/Beacon.icns "${app_dir}/Contents/Resources/Beacon.icns"
+ditto --noextattr --noqtn assets "${app_dir}/Contents/Resources/assets"
+ditto --noextattr --noqtn assets/icons/Beacon.icns "${app_dir}/Contents/Resources/Beacon.icns"
+chmod -R u+rwX,go+rX "${app_dir}/Contents/Resources"
+xattr -cr "${app_dir}"
 
 cat > "${app_dir}/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
