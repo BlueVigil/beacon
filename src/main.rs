@@ -115,12 +115,12 @@ fn main() {
          WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             window_min_size: Some(size(px(900.0), px(840.0))),
-            titlebar: Some(TitlebarOptions {
-               appears_transparent: true,
-               traffic_light_position: Some(point(px(12.0), px(10.0))),
-               ..Default::default()
+            titlebar: Some(linux_or_client_titlebar()),
+            window_decorations: Some(if cfg!(target_os = "linux") {
+               WindowDecorations::Server
+            } else {
+               WindowDecorations::Client
             }),
-            window_decorations: Some(WindowDecorations::Client),
             ..Default::default()
          },
          |window, cx| {
@@ -131,6 +131,22 @@ fn main() {
       )
       .unwrap();
    });
+}
+
+fn linux_or_client_titlebar() -> TitlebarOptions {
+   if cfg!(target_os = "linux") {
+      TitlebarOptions {
+         title: Some("BEACON".into()),
+         appears_transparent: false,
+         ..Default::default()
+      }
+   } else {
+      TitlebarOptions {
+         appears_transparent: true,
+         traffic_light_position: Some(point(px(12.0), px(10.0))),
+         ..Default::default()
+      }
+   }
 }
 
 fn asset_root() -> PathBuf {

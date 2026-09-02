@@ -127,7 +127,11 @@ impl BeaconApp {
                .flex()
                .items_center()
                .justify_between()
-               .pl(px(89.0))
+               .pl(px(if cfg!(target_os = "macos") {
+                  89.0
+               } else {
+                  12.0
+               }))
                .pr_3()
                .on_mouse_down(MouseButton::Left, |_, window, _| window.start_window_move())
                .child(

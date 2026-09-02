@@ -18,10 +18,10 @@ use hidapi::{
 
 use super::{
    device::{
+      identify_hid_model,
       is_teensy_hid,
       is_teensy_seremu,
-      is_teensy_vid_pid,
-      model_from_halfkay_usage,
+      teensy_serial_ports,
    },
    firmware::load_firmware_file,
    model::Model,
@@ -146,7 +146,7 @@ fn open_bootloader_once(
       bail!("multiple Teensy bootloaders found; select a device before upload");
    }
 
-   let model = model_from_halfkay_usage(info.usage()).unwrap_or(Model::Teensy);
+   let model = identify_hid_model(info);
    if model == Model::Teensy {
       bail!("could not identify Teensy bootloader model");
    }
@@ -172,24 +172,18 @@ fn reboot_running_teensy(api: &HidApi, options: &UploadOptions) -> Result<()> {
       rebooted = true;
    }
 
-   for port in serialport::available_ports()? {
-      let serialport::SerialPortType::UsbPort(info) = &port.port_type else {
-         continue;
-      };
-      if !is_teensy_vid_pid(info.vid, info.pid) {
-         continue;
-      }
-      if !matches_filter(info.serial_number.as_deref(), &port.port_name, options) {
+   for port in teensy_serial_ports() {
+      if !matches_filter(port.serial_number.as_deref(), &port.port_name, options) {
          continue;
       }
       found = true;
 
-      let mut port = serialport::new(&port.port_name, 115_200)
+      let mut serial = serialport::new(&port.port_name, 115_200)
          .timeout(Duration::from_millis(100))
          .open()
          .with_context(|| format!("failed to open {}", port.port_name))?;
-      port.set_baud_rate(134)?;
-      let _ = port.set_baud_rate(115_200);
+      serial.set_baud_rate(134)?;
+      let _ = serial.set_baud_rate(115_200);
       rebooted = true;
    }
 
@@ -337,23 +331,17 @@ pub fn reboot_to_bootloader(board_filter: Option<&str>) -> Result<()> {
       device.send_feature_report(&[0, 0xA9, 0x45, 0xC2, 0x6B])?;
    }
 
-   for port in serialport::available_ports().unwrap_or_default() {
-      let serialport::SerialPortType::UsbPort(info) = &port.port_type else {
-         continue;
-      };
-      if !is_teensy_vid_pid(info.vid, info.pid) {
-         continue;
-      }
-      if !matches_filter(info.serial_number.as_deref(), &port.port_name, &options) {
+   for port in teensy_serial_ports() {
+      if !matches_filter(port.serial_number.as_deref(), &port.port_name, &options) {
          continue;
       }
 
-      let mut port = serialport::new(&port.port_name, 115_200)
+      let mut serial = serialport::new(&port.port_name, 115_200)
          .timeout(Duration::from_millis(100))
          .open()
          .with_context(|| format!("failed to open {}", port.port_name))?;
-      port.set_baud_rate(134)?;
-      let _ = port.set_baud_rate(115_200);
+      serial.set_baud_rate(134)?;
+      let _ = serial.set_baud_rate(115_200);
       return Ok(());
    }
 
