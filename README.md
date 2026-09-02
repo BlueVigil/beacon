@@ -19,4 +19,4 @@ BEACON is licensed under the GNU Affero General Public License v3.0. See [LICENS
 
 ## Credits
 
-BEACON vendors and references TyTools source code from Rygel: https://codeberg.org/Koromix/rygel
+BEACON's Teensy support is based on TyTools from Rygel: https://codeberg.org/Koromix/rygel

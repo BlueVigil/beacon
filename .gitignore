@@ -21,7 +21,6 @@ PLAN*.md
 !src/
 !assets/
 !resources/
-!vendor/
 
 # RS
 !.cargo/
